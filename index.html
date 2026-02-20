@@ -124,9 +124,9 @@
   <div class="slider-group">
     <div class="slider-label">
       <span>Gap</span>
-      <span id="gapVal">auto</span>
+      <span id="gapVal">1</span>
     </div>
-    <input type="range" id="gapSlider" min="0" max="8" step="1" value="0">
+    <input type="range" id="gapSlider" min="1" max="8" step="1" value="1">
   </div>
   <div class="slider-group">
     <div class="slider-label">
@@ -180,7 +180,7 @@ let W, H;
 let colorMode = true;
 let trails = [];
 let speedMult = 1;
-let gapOverride = 0;
+let gapOverride = 1;
 let trailOverride = 53; // explicit history length, 0 = no trail
 let numVertices = 4;
 let targetFps = 60;
@@ -218,9 +218,6 @@ function getTrailLength(count) {
   return Math.round(60 - (count - 1) * 7);
 }
 
-function getDrawStep(count) {
-  return Math.max(1, 4 - Math.floor(count * 0.5));
-}
 
 function resize() {
   W = canvas.width = offscreen.width = window.innerWidth;
@@ -347,7 +344,7 @@ function initShapes(count) {
   trails = [];
   const hues = [0, 120, 210, 280, 40, 170];
   const trailLength = trailOverride;
-  const drawStep = gapOverride > 0 ? gapOverride : getDrawStep(count);
+  const drawStep = gapOverride;
   for (let i = 0; i < count; i++) {
     trails.push(new Shape(numVertices, hues[i % hues.length] + Math.random() * 30, trailLength, drawStep));
   }
@@ -513,7 +510,7 @@ document.getElementById('vertSlider').addEventListener('input', (e) => {
 
 document.getElementById('gapSlider').addEventListener('input', (e) => {
   gapOverride = parseInt(e.target.value);
-  document.getElementById('gapVal').textContent = gapOverride === 0 ? 'auto' : gapOverride;
+  document.getElementById('gapVal').textContent = gapOverride;
   initShapes(trails.length);
 });
 
@@ -564,7 +561,7 @@ document.getElementById('btnRandom').addEventListener('click', () => {
   const shapes = pick(1, 6, 1);
   const trail  = pick(0, 120, 1);
   const verts  = pick(2, 8, 1);
-  const gap    = pick(0, 8, 1);
+  const gap    = pick(1, 8, 1);
   const fade   = pick(1, 10, 1);
   const speed  = pick(0.2, 4, 0.1);
   const fps    = pick(5, 60, 1);
@@ -592,7 +589,7 @@ document.getElementById('btnRandom').addEventListener('click', () => {
   document.getElementById('vertSlider').value = verts;
   document.getElementById('vertVal').textContent = verts;
   document.getElementById('gapSlider').value = gap;
-  document.getElementById('gapVal').textContent = gap === 0 ? 'auto' : gap;
+  document.getElementById('gapVal').textContent = gap;
   document.getElementById('fadeSlider').value = fade;
   const fadeLabels = ['min','','slow','','med','','fast','','','max'];
   document.getElementById('fadeVal').textContent = fadeLabels[fade - 1] || fade;
