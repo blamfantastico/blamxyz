@@ -71,6 +71,7 @@
   .slider-label {
     display: flex;
     justify-content: space-between;
+    cursor: pointer;
   }
   .slider-label span:last-child {
     color: rgba(255,255,255,0.4);
@@ -112,73 +113,73 @@
     <button id="btnBW">B&amp;W</button>
   </div>
   <div class="slider-group">
-    <div class="slider-label">
+    <label class="slider-label" for="linesSlider">
       <span>Shapes</span>
       <span id="linesVal">2</span>
-    </div>
+    </label>
     <input type="range" id="linesSlider" min="1" max="6" step="1" value="2">
   </div>
   <div class="slider-group">
-    <div class="slider-label">
+    <label class="slider-label" for="trailSlider">
       <span>Trail</span>
       <span id="trailVal">53</span>
-    </div>
+    </label>
     <input type="range" id="trailSlider" min="0" max="120" step="1" value="53">
   </div>
   <div class="slider-group">
-    <div class="slider-label">
+    <label class="slider-label" for="vertSlider">
       <span>Vertices</span>
       <span id="vertVal">4</span>
-    </div>
-    <input type="range" id="vertSlider" min="2" max="8" step="1" value="4">
+    </label>
+    <input type="range" id="vertSlider" min="2" max="16" step="1" value="4">
   </div>
   <div class="slider-group">
-    <div class="slider-label">
+    <label class="slider-label" for="gapSlider">
       <span>Gap</span>
       <span id="gapVal">1</span>
-    </div>
+    </label>
     <input type="range" id="gapSlider" min="1" max="8" step="1" value="1">
   </div>
   <div class="slider-group">
-    <div class="slider-label">
+    <label class="slider-label" for="fadeSlider">
       <span>Fade</span>
       <span id="fadeVal">med</span>
-    </div>
+    </label>
     <input type="range" id="fadeSlider" min="1" max="10" step="1" value="5">
   </div>
   <div class="slider-group">
-    <div class="slider-label">
+    <label class="slider-label" for="speedSlider">
       <span>Speed</span>
       <span id="speedVal">1.0×</span>
-    </div>
+    </label>
     <input type="range" id="speedSlider" min="0.2" max="4" step="0.1" value="1">
   </div>
   <div class="slider-group">
-    <div class="slider-label">
+    <label class="slider-label" for="thickSlider">
       <span>Thickness</span>
       <span id="thickVal">1</span>
-    </div>
+    </label>
     <input type="range" id="thickSlider" min="1" max="10" step="0.5" value="1">
   </div>
   <div class="slider-group">
-    <div class="slider-label">
+    <label class="slider-label" for="curveSlider">
       <span>Curve</span>
       <span id="curveVal">0</span>
-    </div>
+    </label>
     <input type="range" id="curveSlider" min="0" max="10" step="1" value="0">
   </div>
   <div class="slider-group">
-    <div class="slider-label">
+    <label class="slider-label" for="wanderSlider">
       <span>Wander</span>
       <span id="wanderVal">3</span>
-    </div>
+    </label>
     <input type="range" id="wanderSlider" min="0" max="10" step="1" value="3">
   </div>
   <div class="slider-group">
-    <div class="slider-label">
+    <label class="slider-label" for="fpsSlider">
       <span>FPS</span>
       <span id="fpsVal">60</span>
-    </div>
+    </label>
     <input type="range" id="fpsSlider" min="1" max="60" step="1" value="60">
   </div>
   <div class="btn-group">
@@ -213,7 +214,7 @@ const wander = {
   fade:      { val: 5,   min: 1,   max: 10,  step: 1,   vel: 0 },
   speed:     { val: 1,   min: 0.2, max: 4,   step: 0.1, vel: 0 },
   thickness: { val: 1,   min: 1,   max: 10,  step: 0.5, vel: 0 },
-  vertices:  { val: 4,   min: 2,   max: 8,   step: 1,   vel: 0 },
+  vertices:  { val: 4,   min: 2,   max: 16,  step: 1,   vel: 0 },
   trail:     { val: 53,  min: 0,   max: 120, step: 1,   vel: 0 },
   shapes:    { val: 2,   min: 1,   max: 6,   step: 1,   vel: 0 },
   curve:     { val: 0,   min: 0,   max: 10,  step: 1,   vel: 0 },
@@ -254,14 +255,48 @@ class Corner {
     this.y = Math.random() * H;
     this.vx = (Math.random() * 3 + 1.5) * (Math.random() < 0.5 ? 1 : -1);
     this.vy = (Math.random() * 3 + 1.5) * (Math.random() < 0.5 ? 1 : -1);
+    this.mergeTarget = null;
+    this.mergePartner = null;
+    this.mergeAge = 0;
+  }
+  seek(tx, ty) {
+    const dx = tx - this.x;
+    const dy = ty - this.y;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy) || 2;
+    // Desired velocity: current speed directed at target
+    const dvx = (dx / dist) * speed;
+    const dvy = (dy / dist) * speed;
+    // Steer velocity toward desired
+    this.vx += (dvx - this.vx) * 0.12;
+    this.vy += (dvy - this.vy) * 0.12;
   }
   update() {
+    if (this.mergeTarget) {
+      this.mergeAge++;
+      this.seek(this.mergeTarget.x, this.mergeTarget.y);
+      this.x += this.vx * speedMult;
+      this.y += this.vy * speedMult;
+      return;
+    }
+    if (this.mergePartner) {
+      this.seek(this.mergePartner.x, this.mergePartner.y);
+      this.x += this.vx * speedMult;
+      this.y += this.vy * speedMult;
+      return;
+    }
     this.x += this.vx * speedMult;
     this.y += this.vy * speedMult;
     if (this.x <= 0) { this.x = 0; this.vx = Math.abs(this.vx); }
     if (this.x >= W) { this.x = W; this.vx = -Math.abs(this.vx); }
     if (this.y <= 0) { this.y = 0; this.vy = Math.abs(this.vy); }
     if (this.y >= H) { this.y = H; this.vy = -Math.abs(this.vy); }
+  }
+  isMerged() {
+    if (!this.mergeTarget) return false;
+    const dx = this.mergeTarget.x - this.x;
+    const dy = this.mergeTarget.y - this.y;
+    return dx * dx + dy * dy < 25 || this.mergeAge > 600;
   }
 }
 
@@ -299,6 +334,15 @@ class Shape {
       if (this.history.length > this.trailLength) this.history.shift();
     }
     this.corners.forEach(c => c.update());
+    if (this.corners.length > 2) {
+      const merged = new Set(this.corners.filter(c => c.isMerged()));
+      merged.forEach(c => { if (c.mergeTarget) c.mergeTarget.mergePartner = null; });
+      this.corners = this.corners.filter(c => !merged.has(c));
+    }
+    // If still over target and no merge in flight, kick off another
+    if (this.corners.length > numVertices && !this.corners.some(c => c.mergeTarget)) {
+      this.removeVertex();
+    }
     this.hue = (this.hue + 0.4) % 360;
   }
 
@@ -314,11 +358,14 @@ class Shape {
     this.corners.splice(i + 1, 0, c);
   }
 
-  // Remove a random vertex — old history entries age off naturally
+  // Remove a random vertex by merging it into an adjacent one
   removeVertex() {
     if (this.corners.length <= 2) return;
+    if (this.corners.some(c => c.mergeTarget)) return; // wait for current merge to finish
     const i = Math.floor(Math.random() * this.corners.length);
-    this.corners.splice(i, 1);
+    const j = (i + 1) % this.corners.length;
+    this.corners[i].mergeTarget = this.corners[j];
+    this.corners[j].mergePartner = this.corners[i];
   }
 
   // Draw to either the main ctx (color) or offscreen octx (B&W)
@@ -651,7 +698,7 @@ document.getElementById('btnRandom').addEventListener('click', () => {
 
   const shapes = pick(1, 6, 1);
   const trail  = pick(0, 120, 1);
-  const verts  = pick(2, 8, 1);
+  const verts  = pick(2, 16, 1);
   const gap    = pick(1, 8, 1);
   const fade   = pick(1, 10, 1);
   const speed  = pick(0.2, 4, 0.1);
