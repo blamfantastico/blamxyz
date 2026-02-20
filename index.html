@@ -238,6 +238,25 @@ const BAYER8 = [
   63, 31, 55, 23, 61, 29, 53, 21
 ].map(v => v / 64);
 
+// Centripetal Catmull-Rom bezier handles for segment p1→p2.
+// Knot intervals = sqrt(Euclidean distance), which prevents cusps and
+// self-intersections when control points are unevenly spaced.
+function centripetalHandles(p0, p1, p2, p3, tension) {
+  const d01 = Math.sqrt(Math.hypot(p1.x - p0.x, p1.y - p0.y)) || 1e-4;
+  const d12 = Math.sqrt(Math.hypot(p2.x - p1.x, p2.y - p1.y)) || 1e-4;
+  const d23 = Math.sqrt(Math.hypot(p3.x - p2.x, p3.y - p2.y)) || 1e-4;
+  const m1x = tension * d12 * ((p1.x-p0.x)/d01 - (p2.x-p0.x)/(d01+d12) + (p2.x-p1.x)/d12);
+  const m1y = tension * d12 * ((p1.y-p0.y)/d01 - (p2.y-p0.y)/(d01+d12) + (p2.y-p1.y)/d12);
+  const m2x = tension * d12 * ((p2.x-p1.x)/d12 - (p3.x-p1.x)/(d12+d23) + (p3.x-p2.x)/d23);
+  const m2y = tension * d12 * ((p2.y-p1.y)/d12 - (p3.y-p1.y)/(d12+d23) + (p3.y-p2.y)/d23);
+  return {
+    cp1x: p1.x + m1x / 3,
+    cp1y: p1.y + m1y / 3,
+    cp2x: p2.x - m2x / 3,
+    cp2y: p2.y - m2y / 3,
+  };
+}
+
 function getTrailLength(count) {
   return Math.round(60 - (count - 1) * 7);
 }
@@ -348,20 +367,21 @@ class Shape {
     this.hue = (this.hue + 0.4) % 360;
   }
 
-  // Add a vertex on the Catmull-Rom curve at t=0.5 of a random edge,
-  // so insertion is seamless at any curve tension
+  // Add a vertex at the centripetal Catmull-Rom curve midpoint (t=0.5) of a
+  // random edge, computed via de Casteljau on the centripetal bezier handles
   addVertex() {
     const n = this.corners.length;
     const i = Math.floor(Math.random() * n);
-    const prev = this.corners[(i - 1 + n) % n];
-    const a    = this.corners[i];
-    const b    = this.corners[(i + 1) % n];
-    const next = this.corners[(i + 2) % n];
+    const p0 = this.corners[(i - 1 + n) % n];
+    const p1 = this.corners[i];
+    const p2 = this.corners[(i + 1) % n];
+    const p3 = this.corners[(i + 2) % n];
+    const { cp1x, cp1y, cp2x, cp2y } = centripetalHandles(p0, p1, p2, p3, cornerRadius);
     const c = new Corner();
-    c.x = 0.5*(a.x + b.x) + 0.125*cornerRadius*(a.x + b.x - prev.x - next.x);
-    c.y = 0.5*(a.y + b.y) + 0.125*cornerRadius*(a.y + b.y - prev.y - next.y);
-    c.vx = (a.vx + b.vx) / 2;
-    c.vy = (a.vy + b.vy) / 2;
+    c.x = 0.125*p1.x + 0.375*cp1x + 0.375*cp2x + 0.125*p2.x;
+    c.y = 0.125*p1.y + 0.375*cp1y + 0.375*cp2y + 0.125*p2.y;
+    c.vx = (p1.vx + p2.vx) / 2;
+    c.vy = (p1.vy + p2.vy) / 2;
     this.corners.splice(i + 1, 0, c);
   }
 
@@ -387,10 +407,8 @@ class Shape {
         const p1 = pts[i];
         const p2 = pts[(i + 1) % n];
         const p3 = pts[(i + 2) % n];
-        const cp1x = p1.x + tension * (p2.x - p0.x) / 3;
-        const cp1y = p1.y + tension * (p2.y - p0.y) / 3;
-        const cp2x = p2.x - tension * (p3.x - p1.x) / 3;
-        const cp2y = p2.y - tension * (p3.y - p1.y) / 3;
+        if (!tension) { target.lineTo(p2.x, p2.y); continue; }
+        const { cp1x, cp1y, cp2x, cp2y } = centripetalHandles(p0, p1, p2, p3, tension);
         target.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
       }
     };
@@ -599,13 +617,14 @@ function loop(timestamp) {
         const cs = t.corners;
         const n = cs.length;
         for (let i = 0; i < n; i++) {
-          const prev = cs[(i - 1 + n) % n];
-          const a    = cs[i];
-          const b    = cs[(i + 1) % n];
-          const next = cs[(i + 2) % n];
-          // Midpoint circle
-          const mx = 0.5*(a.x + b.x) + 0.125*cornerRadius*(a.x + b.x - prev.x - next.x);
-          const my = 0.5*(a.y + b.y) + 0.125*cornerRadius*(a.y + b.y - prev.y - next.y);
+          const p0 = cs[(i - 1 + n) % n];
+          const a  = cs[i];
+          const b  = cs[(i + 1) % n];
+          const p3 = cs[(i + 2) % n];
+          // Midpoint circle at centripetal bezier t=0.5
+          const { cp1x, cp1y, cp2x, cp2y } = centripetalHandles(p0, a, b, p3, cornerRadius);
+          const mx = 0.125*a.x + 0.375*cp1x + 0.375*cp2x + 0.125*b.x;
+          const my = 0.125*a.y + 0.375*cp1y + 0.375*cp2y + 0.125*b.y;
           ctx.beginPath();
           ctx.arc(mx, my, 5, 0, Math.PI * 2);
           ctx.stroke();
