@@ -207,6 +207,7 @@ const wander = {
   thickness: { val: 1,   min: 1,   max: 10,  step: 0.5, vel: 0 },
   vertices:  { val: 4,   min: 2,   max: 8,   step: 1,   vel: 0 },
   trail:     { val: 53,  min: 0,   max: 120, step: 1,   vel: 0 },
+  shapes:    { val: 2,   min: 1,   max: 6,   step: 1,   vel: 0 },
 };
 
 let wanderTimer = 0;
@@ -263,6 +264,11 @@ class Shape {
     this.drawStep = drawStep;
     this.corners = Array.from({length: numCorners}, () => new Corner());
     this.history = [];
+    this.dying = false;
+  }
+
+  isDead() {
+    return this.dying && this.history.every(e => e.alpha === 0);
   }
 
   update() {
@@ -273,7 +279,7 @@ class Shape {
         const decayFactor = Math.pow(0.01, fadeAlpha / this.trailLength);
         this.history.forEach(e => { e.alpha *= decayFactor; });
       }
-      this.history.push({ pts: this.corners.map(c => ({x: c.x, y: c.y})), alpha: 1.0, thickness: lineThickness });
+      this.history.push({ pts: this.corners.map(c => ({x: c.x, y: c.y})), alpha: this.dying ? 0 : 1.0, thickness: lineThickness });
       if (this.history.length > this.trailLength) this.history.shift();
     }
     this.corners.forEach(c => c.update());
@@ -459,6 +465,22 @@ function tickWander(timestamp) {
     document.getElementById('trailSlider').value = newTrail;
     document.getElementById('trailVal').textContent = newTrail;
   }
+
+  // Shapes — add/remove one at a time, dying shapes fade out naturally
+  const newShapes = Math.round(wanderStep(wander.shapes, rate * 0.3));
+  const liveCount = trails.filter(t => !t.dying).length;
+  if (newShapes !== liveCount) {
+    const delta = newShapes > liveCount ? 1 : -1;
+    if (delta > 0) {
+      const hues = [0, 120, 210, 280, 40, 170];
+      const i = trails.filter(t => !t.dying).length;
+      trails.push(new Shape(numVertices, hues[i % hues.length] + Math.random() * 30, trailOverride, gapOverride));
+    } else {
+      trails.find(t => !t.dying).dying = true;
+    }
+    document.getElementById('linesSlider').value = newShapes;
+    document.getElementById('linesVal').textContent = newShapes;
+  }
 }
 
 function loop(timestamp) {
@@ -478,6 +500,7 @@ function loop(timestamp) {
       trails.forEach(t => { t.update(); t.drawTo(octx, false); });
       ditherToMain();
     }
+    trails = trails.filter(t => !t.isDead());
   }
 
   requestAnimationFrame(loop);
@@ -511,7 +534,10 @@ document.getElementById('linesSlider').addEventListener('input', (e) => {
     const i = trails.length;
     trails.push(new Shape(numVertices, hues[i % hues.length] + Math.random() * 30, trailOverride, gapOverride));
   }
-  while (trails.length > count) trails.pop();
+  while (trails.filter(t => !t.dying).length > count) {
+    trails.find(t => !t.dying).dying = true;
+  }
+  wander.shapes.val = count;
 });
 
 document.getElementById('trailSlider').addEventListener('input', (e) => {
@@ -559,6 +585,7 @@ document.getElementById('wanderSlider').addEventListener('input', (e) => {
     wander.thickness.val = lineThickness;
     wander.vertices.val  = numVertices;
     wander.trail.val     = trailOverride;
+    wander.shapes.val    = trails.filter(t => !t.dying).length;
   }
 });
 
@@ -601,6 +628,7 @@ document.getElementById('btnRandom').addEventListener('click', () => {
   wander.fade.val      = fade;
   wander.speed.val     = speed;
   wander.thickness.val = thick;
+  wander.shapes.val    = shapes;
 
   // Update sliders
   document.getElementById('linesSlider').value = shapes;
