@@ -162,6 +162,13 @@
   </div>
   <div class="slider-group">
     <div class="slider-label">
+      <span>Curve</span>
+      <span id="curveVal">0</span>
+    </div>
+    <input type="range" id="curveSlider" min="0" max="10" step="1" value="0">
+  </div>
+  <div class="slider-group">
+    <div class="slider-label">
       <span>Wander</span>
       <span id="wanderVal">3</span>
     </div>
@@ -197,6 +204,7 @@ let numVertices = 4;
 let targetFps = 60;
 let fadeAlpha = 4 / 9; // matches default slider value 5: (5-1)/9
 let lineThickness = 1;
+let cornerRadius = 0; // Catmull-Rom tension, 0 = straight lines, 1 = fully curved
 let lastFrameTime = 0;
 let wanderSpeed = 3; // 0 = off, 1–10
 
@@ -208,6 +216,7 @@ const wander = {
   vertices:  { val: 4,   min: 2,   max: 8,   step: 1,   vel: 0 },
   trail:     { val: 53,  min: 0,   max: 120, step: 1,   vel: 0 },
   shapes:    { val: 2,   min: 1,   max: 6,   step: 1,   vel: 0 },
+  curve:     { val: 0,   min: 0,   max: 10,  step: 1,   vel: 0 },
 };
 
 let wanderTimer = 0;
@@ -286,7 +295,7 @@ class Shape {
         const decayFactor = Math.pow(0.01, fadeAlpha / this.trailLength);
         this.history.forEach(e => { e.alpha *= decayFactor; });
       }
-      this.history.push({ pts: this.corners.map(c => ({x: c.x, y: c.y})), alpha: this.dying ? 0 : 1.0, thickness: lineThickness });
+      this.history.push({ pts: this.corners.map(c => ({x: c.x, y: c.y})), alpha: this.dying ? 0 : 1.0, thickness: lineThickness, curve: cornerRadius });
       if (this.history.length > this.trailLength) this.history.shift();
     }
     this.corners.forEach(c => c.update());
@@ -315,14 +324,21 @@ class Shape {
   // Draw to either the main ctx (color) or offscreen octx (B&W)
   drawTo(target, isColor) {
 
-    const drawPoly = (pts) => {
+    const drawPoly = (pts, tension) => {
+      const n = pts.length;
       target.beginPath();
       target.moveTo(pts[0].x, pts[0].y);
-      for (let j = 1; j < pts.length; j++) target.lineTo(pts[j].x, pts[j].y);
-      // Explicitly close by returning to start — then step one more to ensure
-      // the closing join is rendered as a lineJoin, not a lineCap
-      target.lineTo(pts[0].x, pts[0].y);
-      target.lineTo(pts[1].x, pts[1].y);
+      for (let i = 0; i < n; i++) {
+        const p0 = pts[(i - 1 + n) % n];
+        const p1 = pts[i];
+        const p2 = pts[(i + 1) % n];
+        const p3 = pts[(i + 2) % n];
+        const cp1x = p1.x + tension * (p2.x - p0.x) / 3;
+        const cp1y = p1.y + tension * (p2.y - p0.y) / 3;
+        const cp2x = p2.x - tension * (p3.x - p1.x) / 3;
+        const cp2y = p2.y - tension * (p3.y - p1.y) / 3;
+        target.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+      }
     };
 
     // When trail is 0, just draw the current position as a single bright line
@@ -332,7 +348,7 @@ class Shape {
       target.lineCap  = round ? 'round' : 'butt';
       target.lineWidth = lineThickness;
       const pts = this.corners;
-      drawPoly(pts);
+      drawPoly(pts, cornerRadius);
       target.strokeStyle = isColor ? `hsla(${this.hue}, 100%, 65%, 1)` : '#fff';
       target.stroke();
       return;
@@ -344,6 +360,7 @@ class Shape {
       const alpha = entry.alpha;
       const pts = entry.pts;
       const thick = entry.thickness;
+      const curve = entry.curve;
       const round = thick > 1;
       target.lineJoin = round ? 'round' : 'miter';
       target.lineCap  = round ? 'round' : 'butt';
@@ -356,7 +373,7 @@ class Shape {
         const brightness = Math.round(alpha * 255);
         strokeStyle = `rgb(${brightness},${brightness},${brightness})`;
       }
-      drawPoly(pts);
+      drawPoly(pts, curve);
       target.strokeStyle = strokeStyle;
       target.stroke();
     };
@@ -489,6 +506,12 @@ function tickWander(timestamp) {
     document.getElementById('linesVal').textContent = newShapes;
   }
 
+  // Curve
+  const newCurve = Math.round(wanderStep(wander.curve, rate * 0.4));
+  cornerRadius = newCurve / 10;
+  document.getElementById('curveSlider').value = newCurve;
+  document.getElementById('curveVal').textContent = newCurve;
+
   // Grow new shapes toward current vertex count one step at a time
   trails.forEach(t => {
     if (!t.dying && t.corners.length < numVertices) t.addVertex();
@@ -598,6 +621,7 @@ document.getElementById('wanderSlider').addEventListener('input', (e) => {
     wander.vertices.val  = numVertices;
     wander.trail.val     = trailOverride;
     wander.shapes.val    = trails.filter(t => !t.dying).length;
+    wander.curve.val     = Math.round(cornerRadius * 10);
   }
 });
 
@@ -610,6 +634,13 @@ document.getElementById('thickSlider').addEventListener('input', (e) => {
   lineThickness = parseFloat(e.target.value);
   wander.thickness.val = lineThickness;
   document.getElementById('thickVal').textContent = lineThickness % 1 === 0 ? lineThickness : lineThickness.toFixed(1);
+});
+
+document.getElementById('curveSlider').addEventListener('input', (e) => {
+  const v = parseInt(e.target.value);
+  cornerRadius = v / 10;
+  wander.curve.val = v;
+  document.getElementById('curveVal').textContent = v;
 });
 
 document.getElementById('btnRandom').addEventListener('click', () => {
@@ -626,6 +657,7 @@ document.getElementById('btnRandom').addEventListener('click', () => {
   const speed  = pick(0.2, 4, 0.1);
   const fps    = pick(5, 60, 1);
   const thick  = pick(1, 10, 0.5);
+  const curve  = pick(0, 10, 1);
 
   // Apply values
   trailOverride = trail;
@@ -634,6 +666,7 @@ document.getElementById('btnRandom').addEventListener('click', () => {
   speedMult     = speed;
   targetFps     = fps;
   lineThickness = thick;
+  cornerRadius  = curve / 10;
   fadeAlpha     = fadeValToAlpha(fade);
 
   // Sync wander state to new values
@@ -641,6 +674,7 @@ document.getElementById('btnRandom').addEventListener('click', () => {
   wander.speed.val     = speed;
   wander.thickness.val = thick;
   wander.shapes.val    = shapes;
+  wander.curve.val     = curve;
 
   // Update sliders
   document.getElementById('linesSlider').value = shapes;
@@ -658,6 +692,8 @@ document.getElementById('btnRandom').addEventListener('click', () => {
   document.getElementById('speedVal').textContent = speed.toFixed(1) + '×';
   document.getElementById('thickSlider').value = thick;
   document.getElementById('thickVal').textContent = thick % 1 === 0 ? thick : thick.toFixed(1);
+  document.getElementById('curveSlider').value = curve;
+  document.getElementById('curveVal').textContent = curve;
 
   initShapes(shapes);
 });
