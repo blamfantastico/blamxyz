@@ -195,6 +195,7 @@ const wander = {
   speed:     { val: 1,   min: 0.2, max: 4,   step: 0.1, vel: 0 },
   thickness: { val: 1,   min: 1,   max: 10,  step: 0.5, vel: 0 },
   vertices:  { val: 4,   min: 2,   max: 8,   step: 1,   vel: 0 },
+  trail:     { val: 53,  min: 0,   max: 120, step: 1,   vel: 0 },
 };
 
 let wanderTimer = 0;
@@ -311,17 +312,20 @@ class Shape {
     }
 
     const len = this.history.length;
+    // fadePow: low = older entries stay bright (long-looking trail),
+    //          high = older entries go dark fast (short-looking trail)
+    const fadePow = fadeAlpha * 8 + 0.2;
     for (let i = 0; i < len; i += this.drawStep) {
       const pts = this.history[i];
-      const age = i / len;
-      const alpha = age * 0.9 + 0.05;
+      const age = (i + 1) / (len + 1); // 0 = oldest, 1 = newest
+      const alpha = Math.pow(age, fadePow);
 
       let strokeStyle;
       if (isColor) {
         const h = (this.hue - (len - i) * 2.5 + 360) % 360;
         strokeStyle = `hsla(${h}, 100%, 65%, ${alpha})`;
       } else {
-        const brightness = Math.round(age * 255);
+        const brightness = Math.round(alpha * 255);
         strokeStyle = `rgb(${brightness},${brightness},${brightness})`;
       }
 
@@ -426,6 +430,15 @@ function tickWander(timestamp) {
     document.getElementById('vertSlider').value = numVertices;
     document.getElementById('vertVal').textContent = numVertices;
   }
+
+  // Trail — update trailLength directly on each shape; update() naturally grows/shrinks
+  const newTrail = Math.round(wanderStep(wander.trail, rate * 3));
+  if (newTrail !== trailOverride) {
+    trailOverride = newTrail;
+    trails.forEach(t => { t.trailLength = newTrail; });
+    document.getElementById('trailSlider').value = newTrail;
+    document.getElementById('trailVal').textContent = newTrail;
+  }
 }
 
 function loop(timestamp) {
@@ -436,11 +449,11 @@ function loop(timestamp) {
     lastFrameTime = timestamp - ((timestamp - lastFrameTime) % interval);
 
     if (colorMode) {
-      ctx.fillStyle = `rgba(0,0,0,${fadeAlpha})`;
+      ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, W, H);
       trails.forEach(t => { t.update(); t.drawTo(ctx, true); });
     } else {
-      octx.fillStyle = `rgba(0,0,0,${fadeAlpha * 1.5})`;
+      octx.fillStyle = '#000';
       octx.fillRect(0, 0, W, H);
       trails.forEach(t => { t.update(); t.drawTo(octx, false); });
       ditherToMain();
@@ -479,7 +492,8 @@ document.getElementById('linesSlider').addEventListener('input', (e) => {
 document.getElementById('trailSlider').addEventListener('input', (e) => {
   trailOverride = parseInt(e.target.value);
   document.getElementById('trailVal').textContent = trailOverride;
-  initShapes(trails.length);
+  trails.forEach(t => { t.trailLength = trailOverride; });
+  wander.trail.val = trailOverride;
 });
 
 document.getElementById('vertSlider').addEventListener('input', (e) => {
@@ -519,6 +533,7 @@ document.getElementById('wanderSlider').addEventListener('input', (e) => {
     wander.speed.val     = speedMult;
     wander.thickness.val = lineThickness;
     wander.vertices.val  = numVertices;
+    wander.trail.val     = trailOverride;
   }
 });
 
