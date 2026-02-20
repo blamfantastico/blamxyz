@@ -115,16 +115,16 @@
   <div class="slider-group">
     <label class="slider-label" for="linesSlider">
       <span>Shapes</span>
-      <span id="linesVal">1</span>
+      <span id="linesVal">2</span>
     </label>
-    <input type="range" id="linesSlider" min="1" max="6" step="1" value="1">
+    <input type="range" id="linesSlider" min="1" max="6" step="1" value="2">
   </div>
   <div class="slider-group">
     <label class="slider-label" for="trailSlider">
       <span>Trail</span>
-      <span id="trailVal">0</span>
+      <span id="trailVal">53</span>
     </label>
-    <input type="range" id="trailSlider" min="0" max="120" step="1" value="0">
+    <input type="range" id="trailSlider" min="0" max="120" step="1" value="53">
   </div>
   <div class="slider-group">
     <label class="slider-label" for="vertSlider">
@@ -171,9 +171,9 @@
   <div class="slider-group">
     <label class="slider-label" for="wanderSlider">
       <span>Wander</span>
-      <span id="wanderVal">off</span>
+      <span id="wanderVal">3</span>
     </label>
-    <input type="range" id="wanderSlider" min="0" max="10" step="1" value="0">
+    <input type="range" id="wanderSlider" min="0" max="10" step="1" value="3">
   </div>
   <div class="slider-group">
     <label class="slider-label" for="fpsSlider">
@@ -200,14 +200,14 @@ let colorMode = true;
 let trails = [];
 let speedMult = 1;
 let gapOverride = 1;
-let trailOverride = 0; // explicit history length, 0 = no trail
+let trailOverride = 53; // explicit history length, 0 = no trail
 let numVertices = 4;
 let targetFps = 60;
 let fadeAlpha = 4 / 9; // matches default slider value 5: (5-1)/9
 let lineThickness = 1;
 let cornerRadius = 0; // Catmull-Rom tension, 0 = straight lines, 1 = fully curved
 let lastFrameTime = 0;
-let wanderSpeed = 0; // 0 = off, 1–10
+let wanderSpeed = 3; // 0 = off, 1–10
 
 // Wander: each property has a current float value and a slow random velocity
 const wander = {
@@ -222,7 +222,7 @@ const wander = {
 
 let wanderTimer = 0;
 const WANDER_INTERVAL = 500; // ms between wander ticks
-const NUM_SHAPES = 1;
+const NUM_SHAPES = 2;
 
 // 8×8 Bayer ordered dither matrix (values 0–63, normalized to 0–1)
 const BAYER8 = [
@@ -321,18 +321,22 @@ class Shape {
     if (this.corners.length > 2) {
       const arrived = this.corners.find(c => c.isArrived());
       if (arrived) {
-        const m = arrived.lerpTarget;
-        this.corners = this.corners.filter(c => c !== arrived);
-        const isLast = !this.corners.some(c => c.lerpTarget === m);
-        if (isLast) {
-          const minSpd = Math.sqrt(1.5 ** 2 + 1.5 ** 2);
-          const spd = Math.sqrt(m.vx ** 2 + m.vy ** 2);
-          if (spd < minSpd) {
-            const scale = spd > 0 ? minSpd / spd : 1;
-            m.vx = spd > 0 ? m.vx * scale : (Math.random() < 0.5 ? 1 : -1) * minSpd * Math.SQRT1_2;
-            m.vy = spd > 0 ? m.vy * scale : (Math.random() < 0.5 ? 1 : -1) * minSpd * Math.SQRT1_2;
-          }
+        const target = arrived.lerpTarget;
+        // Boost target in its current direction
+        const spd = Math.sqrt(arrived.vx ** 2 + arrived.vy ** 2);
+        const tspd = Math.sqrt(target.vx ** 2 + target.vy ** 2);
+        if (tspd > 0) {
+          target.vx += (target.vx / tspd) * spd * 0.3;
+          target.vy += (target.vy / tspd) * spd * 0.3;
         }
+        const minSpd = Math.sqrt(1.5 ** 2 + 1.5 ** 2);
+        const newSpd = Math.sqrt(target.vx ** 2 + target.vy ** 2);
+        if (newSpd < minSpd) {
+          const scale = newSpd > 0 ? minSpd / newSpd : 1;
+          target.vx = newSpd > 0 ? target.vx * scale : (Math.random() < 0.5 ? 1 : -1) * minSpd * Math.SQRT1_2;
+          target.vy = newSpd > 0 ? target.vy * scale : (Math.random() < 0.5 ? 1 : -1) * minSpd * Math.SQRT1_2;
+        }
+        this.corners = this.corners.filter(c => c !== arrived);
       }
     }
     // If still over target and no lerp in flight, kick off another
@@ -342,37 +346,31 @@ class Shape {
     this.hue = (this.hue + 0.4) % 360;
   }
 
-  // Add a vertex by bisecting a random edge — old history entries age off naturally
+  // Add a vertex on the Catmull-Rom curve at t=0.5 of a random edge,
+  // so insertion is seamless at any curve tension
   addVertex() {
     const n = this.corners.length;
     const i = Math.floor(Math.random() * n);
-    const a = this.corners[i];
-    const b = this.corners[(i + 1) % n];
+    const prev = this.corners[(i - 1 + n) % n];
+    const a    = this.corners[i];
+    const b    = this.corners[(i + 1) % n];
+    const next = this.corners[(i + 2) % n];
     const c = new Corner();
-    c.x = (a.x + b.x) / 2;
-    c.y = (a.y + b.y) / 2;
+    c.x = 0.5*(a.x + b.x) + 0.125*cornerRadius*(a.x + b.x - prev.x - next.x);
+    c.y = 0.5*(a.y + b.y) + 0.125*cornerRadius*(a.y + b.y - prev.y - next.y);
+    c.vx = (a.vx + b.vx) / 2;
+    c.vy = (a.vy + b.vy) / 2;
     this.corners.splice(i + 1, 0, c);
   }
 
-  // Remove a vertex by bisecting an edge into a new merge point,
-  // then lerping both neighbors into it
+  // Remove a vertex by having it pursue its neighbor directly —
+  // no insertion needed; Catmull-Rom handles the smooth disappearance
   removeVertex() {
     if (this.corners.length <= 2) return;
     if (this.corners.some(c => c.lerpTarget)) return;
     const n = this.corners.length;
     const i = Math.floor(Math.random() * n);
-    const a = this.corners[i];
-    const b = this.corners[(i + 1) % n];
-    // New merge vertex at midpoint, inheriting averaged velocity
-    const m = new Corner();
-    m.x = (a.x + b.x) / 2;
-    m.y = (a.y + b.y) / 2;
-    m.vx = (a.vx + b.vx) / 2;
-    m.vy = (a.vy + b.vy) / 2;
-    // Insert between a and b, then both lerp into m
-    this.corners.splice(i + 1, 0, m);
-    a.lerpTarget = m;
-    b.lerpTarget = m;
+    this.corners[i].lerpTarget = this.corners[(i + 1) % n];
   }
 
   // Draw to either the main ctx (color) or offscreen octx (B&W)
@@ -591,6 +589,26 @@ function loop(timestamp) {
     }
     trails = trails.filter(t => !t.isDead());
 
+    // // Debug: draw circles at Catmull-Rom edge midpoints
+    // ctx.save();
+    // ctx.strokeStyle = 'white';
+    // ctx.lineWidth = 1;
+    // trails.forEach(t => {
+    //   const cs = t.corners;
+    //   const n = cs.length;
+    //   for (let i = 0; i < n; i++) {
+    //     const prev = cs[(i - 1 + n) % n];
+    //     const a    = cs[i];
+    //     const b    = cs[(i + 1) % n];
+    //     const next = cs[(i + 2) % n];
+    //     const mx = 0.5*(a.x + b.x) + 0.125*cornerRadius*(a.x + b.x - prev.x - next.x);
+    //     const my = 0.5*(a.y + b.y) + 0.125*cornerRadius*(a.y + b.y - prev.y - next.y);
+    //     ctx.beginPath();
+    //     ctx.arc(mx, my, 5, 0, Math.PI * 2);
+    //     ctx.stroke();
+    //   }
+    // });
+    // ctx.restore();
   }
 
   requestAnimationFrame(loop);
