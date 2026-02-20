@@ -22,6 +22,22 @@ A recreation of the classic Mac After Dark bouncing lines screensaver, running i
 
 Click the canvas to show/hide the control panel.
 
+## Local development
+
+Since this is a single HTML file, any static file server works. The simplest options:
+
+```bash
+# Python (built-in, no install needed)
+python3 -m http.server 8080
+```
+
+```bash
+# Node (if you have npx)
+npx serve .
+```
+
+Then open [http://localhost:8080](http://localhost:8080) in your browser.
+
 ## Deployment
 
 Hosted on GitHub Pages from the `main` branch. Pushes to `main` deploy automatically.
