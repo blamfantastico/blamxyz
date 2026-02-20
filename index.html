@@ -559,11 +559,12 @@ function hideUI() {
   ui.classList.remove('visible');
 }
 
-canvas.addEventListener('pointerdown', showUI);
+canvas.addEventListener('pointerdown', () => {
+  ui.classList.contains('visible') ? hideUI() : showUI();
+});
 
 document.addEventListener('pointerdown', (e) => {
   if (!ui.contains(e.target) && e.target !== canvas) hideUI();
-  else if (e.target === canvas) showUI();
 });
 
 
