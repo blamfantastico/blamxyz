@@ -380,8 +380,9 @@ class Shape {
     const c = new Corner();
     c.x = 0.125*p1.x + 0.375*cp1x + 0.375*cp2x + 0.125*p2.x;
     c.y = 0.125*p1.y + 0.375*cp1y + 0.375*cp2y + 0.125*p2.y;
-    c.vx = (p1.vx + p2.vx) / 2;
-    c.vy = (p1.vy + p2.vy) / 2;
+    const boost = 0.5 + Math.random() * 2.0; // random speed 0.5×–2.5× so new vertex diverges
+    c.vx = (p1.vx + p2.vx) / 2 * boost;
+    c.vy = (p1.vy + p2.vy) / 2 * boost;
     this.corners.splice(i + 1, 0, c);
   }
 
