@@ -257,12 +257,19 @@ class Corner {
 }
 
 class Shape {
-  constructor(numCorners, hue, trailLength, drawStep) {
+  constructor(numCorners, hue, trailLength, drawStep, origin) {
     this.numCorners = numCorners;
     this.hue = hue;
     this.trailLength = trailLength;
     this.drawStep = drawStep;
-    this.corners = Array.from({length: numCorners}, () => new Corner());
+    this.corners = Array.from({length: numCorners}, () => {
+      const c = new Corner();
+      if (origin) {
+        c.x = origin.x + (Math.random() - 0.5) * 24;
+        c.y = origin.y + (Math.random() - 0.5) * 24;
+      }
+      return c;
+    });
     this.history = [];
     this.dying = false;
   }
@@ -474,13 +481,18 @@ function tickWander(timestamp) {
     if (delta > 0) {
       const hues = [0, 120, 210, 280, 40, 170];
       const i = trails.filter(t => !t.dying).length;
-      trails.push(new Shape(numVertices, hues[i % hues.length] + Math.random() * 30, trailOverride, gapOverride));
+      trails.push(new Shape(2, hues[i % hues.length] + Math.random() * 30, trailOverride, gapOverride, { x: Math.random() * W, y: Math.random() * H }));
     } else {
       trails.find(t => !t.dying).dying = true;
     }
     document.getElementById('linesSlider').value = newShapes;
     document.getElementById('linesVal').textContent = newShapes;
   }
+
+  // Grow new shapes toward current vertex count one step at a time
+  trails.forEach(t => {
+    if (!t.dying && t.corners.length < numVertices) t.addVertex();
+  });
 }
 
 function loop(timestamp) {
@@ -532,7 +544,7 @@ document.getElementById('linesSlider').addEventListener('input', (e) => {
   const hues = [0, 120, 210, 280, 40, 170];
   while (trails.length < count) {
     const i = trails.length;
-    trails.push(new Shape(numVertices, hues[i % hues.length] + Math.random() * 30, trailOverride, gapOverride));
+    trails.push(new Shape(2, hues[i % hues.length] + Math.random() * 30, trailOverride, gapOverride, { x: Math.random() * W, y: Math.random() * H }));
   }
   while (trails.filter(t => !t.dying).length > count) {
     trails.find(t => !t.dying).dying = true;
