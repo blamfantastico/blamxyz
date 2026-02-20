@@ -506,7 +506,12 @@ btnBW.addEventListener('click', () => {
 document.getElementById('linesSlider').addEventListener('input', (e) => {
   const count = parseInt(e.target.value);
   document.getElementById('linesVal').textContent = count;
-  initShapes(count);
+  const hues = [0, 120, 210, 280, 40, 170];
+  while (trails.length < count) {
+    const i = trails.length;
+    trails.push(new Shape(numVertices, hues[i % hues.length] + Math.random() * 30, trailOverride, gapOverride));
+  }
+  while (trails.length > count) trails.pop();
 });
 
 document.getElementById('trailSlider').addEventListener('input', (e) => {
@@ -527,7 +532,7 @@ document.getElementById('vertSlider').addEventListener('input', (e) => {
 document.getElementById('gapSlider').addEventListener('input', (e) => {
   gapOverride = parseInt(e.target.value);
   document.getElementById('gapVal').textContent = gapOverride;
-  initShapes(trails.length);
+  trails.forEach(t => { t.drawStep = gapOverride; });
 });
 
 document.getElementById('speedSlider').addEventListener('input', (e) => {
