@@ -184,7 +184,7 @@ let gapOverride = 0;
 let trailOverride = 53; // explicit history length, 0 = no trail
 let numVertices = 4;
 let targetFps = 60;
-let fadeAlpha = 0.04;
+let fadeAlpha = 4 / 9; // matches default slider value 5: (5-1)/9
 let lineThickness = 1;
 let lastFrameTime = 0;
 let wanderSpeed = 3; // 0 = off, 1–10
@@ -312,27 +312,30 @@ class Shape {
     }
 
     const len = this.history.length;
-    // fadePow: low = older entries stay bright (long-looking trail),
-    //          high = older entries go dark fast (short-looking trail)
-    const fadePow = fadeAlpha * 8 + 0.2;
-    for (let i = 0; i < len; i += this.drawStep) {
+    // fadePow 0 = all lines same brightness, 1 = linear gradient oldest→0 newest→1
+    const fadePow = fadeAlpha;
+    const drawEntry = (i, alphaOverride) => {
+      const age = (i + 1) / len; // i=len-1 → age=1 → alpha=1
+      const alpha = alphaOverride !== undefined ? alphaOverride : Math.pow(age, fadePow);
       const pts = this.history[i];
-      const age = (i + 1) / (len + 1); // 0 = oldest, 1 = newest
-      const alpha = Math.pow(age, fadePow);
-
       let strokeStyle;
       if (isColor) {
-        const h = (this.hue - (len - i) * 2.5 + 360) % 360;
+        const h = (this.hue - (len - i) / len * 180 + 360) % 360;
         strokeStyle = `hsla(${h}, 100%, 65%, ${alpha})`;
       } else {
         const brightness = Math.round(alpha * 255);
         strokeStyle = `rgb(${brightness},${brightness},${brightness})`;
       }
-
       drawPoly(pts);
       target.strokeStyle = strokeStyle;
       target.stroke();
+    };
+
+    for (let i = 0; i < len; i += this.drawStep) {
+      drawEntry(i);
     }
+    // Newest entry always at 100% — guarantees head is included even when drawStep skips it
+    if (len > 0) drawEntry(len - 1, 1);
   }
 }
 
@@ -379,7 +382,7 @@ function ditherToMain() {
 
 // Helper: convert fade slider int 1-10 → fadeAlpha
 function fadeValToAlpha(v) {
-  return v === 10 ? 1 : 0.01 + (v - 1) / 9 * 0.3;
+  return (v - 1) / 9; // 0 (no fade, all lines equal) → 1 (linear gradient across all lines)
 }
 
 // Update a single wander property — nudge val by vel, bounce at boundaries
