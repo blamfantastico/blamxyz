@@ -152,9 +152,9 @@
   <div class="slider-group">
     <div class="slider-label">
       <span>Wander</span>
-      <span id="wanderVal">off</span>
+      <span id="wanderVal">3</span>
     </div>
-    <input type="range" id="wanderSlider" min="0" max="10" step="1" value="0">
+    <input type="range" id="wanderSlider" min="0" max="10" step="1" value="3">
   </div>
   <div class="slider-group">
     <div class="slider-label">
@@ -187,7 +187,7 @@ let targetFps = 60;
 let fadeAlpha = 0.04;
 let lineThickness = 1;
 let lastFrameTime = 0;
-let wanderSpeed = 0; // 0 = off, 1–10
+let wanderSpeed = 3; // 0 = off, 1–10
 
 // Wander: each property has a current float value and a slow random velocity
 const wander = {
