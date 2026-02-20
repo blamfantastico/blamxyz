@@ -91,27 +91,10 @@
     background: rgba(255,255,255,0.7);
     border-radius: 50%;
   }
-  #label {
-    position: fixed;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    color: rgba(255,255,255,0.15);
-    font-family: 'Courier New', monospace;
-    font-size: 10px;
-    letter-spacing: 0.3em;
-    text-transform: uppercase;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 2s;
-  }
-  body:hover #label { opacity: 1; }
-  #label.visible { opacity: 1; }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="label">NightLines — After Dark 1.1 (1990)</div>
 <div id="ui">
   <div class="btn-group">
     <button id="btnColor" class="active">Color</button>
@@ -568,15 +551,12 @@ document.getElementById('btnRandom').addEventListener('click', () => {
 
 // Show/hide UI on tap/click
 const ui = document.getElementById('ui');
-const label = document.getElementById('label');
 
 function showUI() {
   ui.classList.add('visible');
-  label.classList.add('visible');
 }
 function hideUI() {
   ui.classList.remove('visible');
-  label.classList.remove('visible');
 }
 
 canvas.addEventListener('pointerdown', showUI);
@@ -586,10 +566,6 @@ document.addEventListener('pointerdown', (e) => {
   else if (e.target === canvas) showUI();
 });
 
-// Also hide when clicking outside on desktop
-document.addEventListener('click', (e) => {
-  if (!ui.contains(e.target)) hideUI();
-});
 
 window.addEventListener('resize', () => {
   resize();
