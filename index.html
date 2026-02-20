@@ -259,7 +259,13 @@ class Shape {
 
   update() {
     if (this.trailLength > 0) {
-      this.history.push(this.corners.map(c => ({x: c.x, y: c.y})));
+      // Decay stored alpha of existing entries — changing fadeAlpha only affects
+      // future decay rate, not already-stored values, so no shimmer on wander
+      if (fadeAlpha > 0 && this.history.length > 0) {
+        const decayFactor = Math.pow(0.01, fadeAlpha / this.trailLength);
+        this.history.forEach(e => { e.alpha *= decayFactor; });
+      }
+      this.history.push({ pts: this.corners.map(c => ({x: c.x, y: c.y})), alpha: 1.0 });
       if (this.history.length > this.trailLength) this.history.shift();
     }
     this.corners.forEach(c => c.update());
@@ -312,12 +318,10 @@ class Shape {
     }
 
     const len = this.history.length;
-    // fadePow 0 = all lines same brightness, 1 = linear gradient oldest→0 newest→1
-    const fadePow = fadeAlpha;
-    const drawEntry = (i, alphaOverride) => {
-      const age = (i + 1) / len; // i=len-1 → age=1 → alpha=1
-      const alpha = alphaOverride !== undefined ? alphaOverride : Math.pow(age, fadePow);
-      const pts = this.history[i];
+    const drawEntry = (i) => {
+      const entry = this.history[i];
+      const alpha = entry.alpha;
+      const pts = entry.pts;
       let strokeStyle;
       if (isColor) {
         const h = (this.hue - (len - i) / len * 180 + 360) % 360;
@@ -334,8 +338,8 @@ class Shape {
     for (let i = 0; i < len; i += this.drawStep) {
       drawEntry(i);
     }
-    // Newest entry always at 100% — guarantees head is included even when drawStep skips it
-    if (len > 0) drawEntry(len - 1, 1);
+    // Newest entry always drawn — guarantees head is included even when drawStep skips it
+    if (len > 0) drawEntry(len - 1);
   }
 }
 
