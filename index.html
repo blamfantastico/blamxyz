@@ -208,6 +208,8 @@ let lineThickness = 1;
 let cornerRadius = 0; // Catmull-Rom tension, 0 = straight lines, 1 = fully curved
 let lastFrameTime = 0;
 let wanderSpeed = 3; // 0 = off, 1–10
+let debugMode = false;
+let debugPrev = {}; // saved state for restoring after debug
 
 // Wander: each property has a current float value and a slow random velocity
 const wander = {
@@ -589,26 +591,36 @@ function loop(timestamp) {
     }
     trails = trails.filter(t => !t.isDead());
 
-    // // Debug: draw circles at Catmull-Rom edge midpoints
-    // ctx.save();
-    // ctx.strokeStyle = 'white';
-    // ctx.lineWidth = 1;
-    // trails.forEach(t => {
-    //   const cs = t.corners;
-    //   const n = cs.length;
-    //   for (let i = 0; i < n; i++) {
-    //     const prev = cs[(i - 1 + n) % n];
-    //     const a    = cs[i];
-    //     const b    = cs[(i + 1) % n];
-    //     const next = cs[(i + 2) % n];
-    //     const mx = 0.5*(a.x + b.x) + 0.125*cornerRadius*(a.x + b.x - prev.x - next.x);
-    //     const my = 0.5*(a.y + b.y) + 0.125*cornerRadius*(a.y + b.y - prev.y - next.y);
-    //     ctx.beginPath();
-    //     ctx.arc(mx, my, 5, 0, Math.PI * 2);
-    //     ctx.stroke();
-    //   }
-    // });
-    // ctx.restore();
+    if (debugMode) {
+      ctx.save();
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = 1;
+      trails.forEach(t => {
+        const cs = t.corners;
+        const n = cs.length;
+        for (let i = 0; i < n; i++) {
+          const prev = cs[(i - 1 + n) % n];
+          const a    = cs[i];
+          const b    = cs[(i + 1) % n];
+          const next = cs[(i + 2) % n];
+          // Midpoint circle
+          const mx = 0.5*(a.x + b.x) + 0.125*cornerRadius*(a.x + b.x - prev.x - next.x);
+          const my = 0.5*(a.y + b.y) + 0.125*cornerRadius*(a.y + b.y - prev.y - next.y);
+          ctx.beginPath();
+          ctx.arc(mx, my, 5, 0, Math.PI * 2);
+          ctx.stroke();
+          // Vertex triangle
+          const r = 7;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y - r);
+          ctx.lineTo(a.x + r * 0.866, a.y + r * 0.5);
+          ctx.lineTo(a.x - r * 0.866, a.y + r * 0.5);
+          ctx.closePath();
+          ctx.stroke();
+        }
+      });
+      ctx.restore();
+    }
   }
 
   requestAnimationFrame(loop);
@@ -789,6 +801,54 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'Space' && e.target === document.body) {
     e.preventDefault();
     ui.classList.contains('visible') ? hideUI() : showUI();
+  }
+  if (e.code === 'KeyD' && e.target === document.body) {
+    debugMode = !debugMode;
+    if (debugMode) {
+      // Save current state
+      debugPrev = {
+        wanderSpeed,
+        trailOverride,
+        shapes: trails.filter(t => !t.dying).length,
+      };
+      // Apply debug: wander off, 1 shape, no trail
+      wanderSpeed = 0;
+      document.getElementById('wanderSlider').value = 0;
+      document.getElementById('wanderVal').textContent = 'off';
+
+      // Mark excess shapes as dying BEFORE changing trailLength so they
+      // retain their current trailLength and drain their history naturally
+      while (trails.filter(t => !t.dying).length > 1) {
+        trails.find(t => !t.dying).dying = true;
+      }
+      document.getElementById('linesSlider').value = 1;
+      document.getElementById('linesVal').textContent = 1;
+
+      // Only zero out trail on the surviving shape
+      trailOverride = 0;
+      trails.forEach(t => { if (!t.dying) t.trailLength = 0; });
+      document.getElementById('trailSlider').value = 0;
+      document.getElementById('trailVal').textContent = 0;
+    } else {
+      // Restore saved state
+      wanderSpeed = debugPrev.wanderSpeed;
+      document.getElementById('wanderSlider').value = wanderSpeed;
+      document.getElementById('wanderVal').textContent = wanderSpeed === 0 ? 'off' : wanderSpeed;
+
+      trailOverride = debugPrev.trailOverride;
+      trails.forEach(t => { t.trailLength = trailOverride; });
+      document.getElementById('trailSlider').value = trailOverride;
+      document.getElementById('trailVal').textContent = trailOverride;
+
+      const targetShapes = debugPrev.shapes;
+      const hues = [0, 120, 210, 280, 40, 170];
+      const liveCount = trails.filter(t => !t.dying).length;
+      for (let i = liveCount; i < targetShapes; i++) {
+        trails.push(new Shape(2, hues[i % hues.length] + Math.random() * 30, trailOverride, gapOverride, { x: Math.random() * W, y: Math.random() * H }));
+      }
+      document.getElementById('linesSlider').value = targetShapes;
+      document.getElementById('linesVal').textContent = targetShapes;
+    }
   }
 });
 
