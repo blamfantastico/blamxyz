@@ -273,7 +273,7 @@ class Shape {
         const decayFactor = Math.pow(0.01, fadeAlpha / this.trailLength);
         this.history.forEach(e => { e.alpha *= decayFactor; });
       }
-      this.history.push({ pts: this.corners.map(c => ({x: c.x, y: c.y})), alpha: 1.0 });
+      this.history.push({ pts: this.corners.map(c => ({x: c.x, y: c.y})), alpha: 1.0, thickness: lineThickness });
       if (this.history.length > this.trailLength) this.history.shift();
     }
     this.corners.forEach(c => c.update());
@@ -301,10 +301,6 @@ class Shape {
 
   // Draw to either the main ctx (color) or offscreen octx (B&W)
   drawTo(target, isColor) {
-    const round = lineThickness > 1;
-    target.lineJoin = round ? 'round' : 'miter';
-    target.lineCap  = round ? 'round' : 'butt';
-    target.lineWidth = lineThickness;
 
     const drawPoly = (pts) => {
       target.beginPath();
@@ -318,6 +314,10 @@ class Shape {
 
     // When trail is 0, just draw the current position as a single bright line
     if (this.trailLength === 0) {
+      const round = lineThickness > 1;
+      target.lineJoin = round ? 'round' : 'miter';
+      target.lineCap  = round ? 'round' : 'butt';
+      target.lineWidth = lineThickness;
       const pts = this.corners;
       drawPoly(pts);
       target.strokeStyle = isColor ? `hsla(${this.hue}, 100%, 65%, 1)` : '#fff';
@@ -330,6 +330,11 @@ class Shape {
       const entry = this.history[i];
       const alpha = entry.alpha;
       const pts = entry.pts;
+      const thick = entry.thickness;
+      const round = thick > 1;
+      target.lineJoin = round ? 'round' : 'miter';
+      target.lineCap  = round ? 'round' : 'butt';
+      target.lineWidth = thick;
       let strokeStyle;
       if (isColor) {
         const h = (this.hue - (len - i) / len * 180 + 360) % 360;
