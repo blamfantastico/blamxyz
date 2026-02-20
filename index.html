@@ -216,10 +216,10 @@ const wander = {
   fade:      { val: 5,   min: 1,   max: 10,  step: 1,   vel: 0 },
   speed:     { val: 1,   min: 0.2, max: 4,   step: 0.1, vel: 0 },
   thickness: { val: 1,   min: 1,   max: 10,  step: 0.5, vel: 0 },
-  vertices:  { val: 4,   min: 2,   max: 16,  step: 1,   vel: 0 },
-  trail:     { val: 53,  min: 0,   max: 120, step: 1,   vel: 0 },
-  shapes:    { val: 2,   min: 1,   max: 6,   step: 1,   vel: 0 },
-  curve:     { val: 0,   min: 0,   max: 10,  step: 1,   vel: 0 },
+  vertices:  { val: 4,   min: -12, max: 16,  step: 1,   vel: 0, fold: 2 },
+  trail:     { val: 53,  min: -120, max: 120, step: 1,   vel: 0, fold: 0 },
+  shapes:    { val: 2,   min: -4,  max: 6,   step: 1,   vel: 0, fold: 1 },
+  curve:     { val: 0,   min: -10, max: 10,  step: 1,   vel: 0, fold: 0 },
 };
 
 let wanderTimer = 0;
@@ -504,16 +504,18 @@ function fadeValToAlpha(v) {
   return (v - 1) / 9; // 0 (no fade, all lines equal) → 1 (linear gradient across all lines)
 }
 
-// Update a single wander property — nudge val by vel, bounce at boundaries
+// Update a single wander property — nudge val by vel, bounce at boundaries.
+// If w.fold is defined, the internal val can go below the fold point;
+// the returned effective value mirrors back up: fold + abs(val - fold).
+// This lets the wander cross the minimum naturally rather than bouncing off it.
 function wanderStep(w, rate) {
-  // Randomly perturb velocity
   w.vel += (Math.random() - 0.5) * rate;
-  w.vel *= 0.85; // dampen
+  w.vel *= 0.85;
   w.val += w.vel;
   if (w.val < w.min) { w.val = w.min; w.vel = Math.abs(w.vel); }
   if (w.val > w.max) { w.val = w.max; w.vel = -Math.abs(w.vel); }
-  // Snap to step grid
-  return Math.round(w.val / w.step) * w.step;
+  const effective = w.fold !== undefined ? w.fold + Math.abs(w.val - w.fold) : w.val;
+  return Math.round(effective / w.step) * w.step;
 }
 
 function tickWander(timestamp) {
@@ -553,7 +555,7 @@ function tickWander(timestamp) {
     document.getElementById('vertVal').textContent = numVertices;
   }
 
-  // Trail — update trailLength directly on each shape; update() naturally grows/shrinks
+  // Trail — fold at 0, handled by wanderStep
   const newTrail = Math.round(wanderStep(wander.trail, rate * 3));
   if (newTrail !== trailOverride) {
     trailOverride = newTrail;
@@ -570,7 +572,7 @@ function tickWander(timestamp) {
     if (delta > 0) {
       const hues = [0, 120, 210, 280, 40, 170];
       const i = trails.filter(t => !t.dying).length;
-      trails.push(new Shape(2, hues[i % hues.length] + Math.random() * 30, trailOverride, gapOverride, { x: Math.random() * W, y: Math.random() * H }));
+      trails.push(new Shape(2, hues[i % hues.length] + Math.random() * 30, trailOverride, Math.ceil(Math.random() * 8), { x: Math.random() * W, y: Math.random() * H }));
     } else {
       trails.find(t => !t.dying).dying = true;
     }
@@ -578,7 +580,7 @@ function tickWander(timestamp) {
     document.getElementById('linesVal').textContent = newShapes;
   }
 
-  // Curve
+  // Curve — fold at 0, handled by wanderStep
   const newCurve = Math.round(wanderStep(wander.curve, rate * 0.4));
   cornerRadius = newCurve / 10;
   document.getElementById('curveSlider').value = newCurve;
@@ -671,7 +673,7 @@ document.getElementById('linesSlider').addEventListener('input', (e) => {
   const hues = [0, 120, 210, 280, 40, 170];
   while (trails.length < count) {
     const i = trails.length;
-    trails.push(new Shape(2, hues[i % hues.length] + Math.random() * 30, trailOverride, gapOverride, { x: Math.random() * W, y: Math.random() * H }));
+    trails.push(new Shape(2, hues[i % hues.length] + Math.random() * 30, trailOverride, Math.ceil(Math.random() * 8), { x: Math.random() * W, y: Math.random() * H }));
   }
   while (trails.filter(t => !t.dying).length > count) {
     trails.find(t => !t.dying).dying = true;
@@ -863,7 +865,7 @@ document.addEventListener('keydown', (e) => {
       const hues = [0, 120, 210, 280, 40, 170];
       const liveCount = trails.filter(t => !t.dying).length;
       for (let i = liveCount; i < targetShapes; i++) {
-        trails.push(new Shape(2, hues[i % hues.length] + Math.random() * 30, trailOverride, gapOverride, { x: Math.random() * W, y: Math.random() * H }));
+        trails.push(new Shape(2, hues[i % hues.length] + Math.random() * 30, trailOverride, Math.ceil(Math.random() * 8), { x: Math.random() * W, y: Math.random() * H }));
       }
       document.getElementById('linesSlider').value = targetShapes;
       document.getElementById('linesVal').textContent = targetShapes;
