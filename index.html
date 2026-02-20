@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NightLines</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #000;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+  }
+  canvas {
+    display: block;
+  }
+  #ui {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.1);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.2) transparent;
+  }
+  #ui::-webkit-scrollbar { width: 4px; }
+  #ui::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); }
+  #ui.visible { opacity: 1; pointer-events: auto; }
+  #ui { pointer-events: none; }
+  .btn-group {
+    display: flex;
+    gap: 6px;
+  }
+  button {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: rgba(255,255,255,0.7);
+    padding: 6px 12px;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    transition: background 0.2s;
+    flex: 1;
+  }
+  button:hover {
+    background: rgba(255,255,255,0.15);
+  }
+  button.active {
+    background: rgba(255,255,255,0.25);
+    border-color: rgba(255,255,255,0.5);
+  }
+  .slider-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: rgba(255,255,255,0.7);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .slider-label {
+    display: flex;
+    justify-content: space-between;
+  }
+  .slider-label span:last-child {
+    color: rgba(255,255,255,0.4);
+  }
+  input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 120px;
+    height: 2px;
+    background: rgba(255,255,255,0.2);
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px;
+    height: 10px;
+    background: rgba(255,255,255,0.7);
+    border-radius: 50%;
+  }
+  #label {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255,255,255,0.15);
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 2s;
+  }
+  body:hover #label { opacity: 1; }
+  #label.visible { opacity: 1; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="label">NightLines — After Dark 1.1 (1990)</div>
+<div id="ui">
+  <div class="btn-group">
+    <button id="btnColor" class="active">Color</button>
+    <button id="btnBW">B&amp;W</button>
+  </div>
+  <div class="slider-group">
+    <div class="slider-label">
+      <span>Shapes</span>
+      <span id="linesVal">2</span>
+    </div>
+    <input type="range" id="linesSlider" min="1" max="6" step="1" value="2">
+  </div>
+  <div class="slider-group">
+    <div class="slider-label">
+      <span>Trail</span>
+      <span id="trailVal">53</span>
+    </div>
+    <input type="range" id="trailSlider" min="0" max="120" step="1" value="53">
+  </div>
+  <div class="slider-group">
+    <div class="slider-label">
+      <span>Vertices</span>
+      <span id="vertVal">4</span>
+    </div>
+    <input type="range" id="vertSlider" min="2" max="8" step="1" value="4">
+  </div>
+  <div class="slider-group">
+    <div class="slider-label">
+      <span>Gap</span>
+      <span id="gapVal">auto</span>
+    </div>
+    <input type="range" id="gapSlider" min="0" max="8" step="1" value="0">
+  </div>
+  <div class="slider-group">
+    <div class="slider-label">
+      <span>Fade</span>
+      <span id="fadeVal">med</span>
+    </div>
+    <input type="range" id="fadeSlider" min="1" max="10" step="1" value="5">
+  </div>
+  <div class="slider-group">
+    <div class="slider-label">
+      <span>Speed</span>
+      <span id="speedVal">1.0×</span>
+    </div>
+    <input type="range" id="speedSlider" min="0.2" max="4" step="0.1" value="1">
+  </div>
+  <div class="slider-group">
+    <div class="slider-label">
+      <span>Thickness</span>
+      <span id="thickVal">1</span>
+    </div>
+    <input type="range" id="thickSlider" min="1" max="10" step="0.5" value="1">
+  </div>
+  <div class="slider-group">
+    <div class="slider-label">
+      <span>Wander</span>
+      <span id="wanderVal">off</span>
+    </div>
+    <input type="range" id="wanderSlider" min="0" max="10" step="1" value="0">
+  </div>
+  <div class="slider-group">
+    <div class="slider-label">
+      <span>FPS</span>
+      <span id="fpsVal">60</span>
+    </div>
+    <input type="range" id="fpsSlider" min="1" max="60" step="1" value="60">
+  </div>
+  <div class="btn-group">
+    <button id="btnRandom" style="margin-top:4px">Randomize</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+// Offscreen canvas for grayscale rendering before dithering
+const offscreen = document.createElement('canvas');
+const octx = offscreen.getContext('2d');
+
+let W, H;
+let colorMode = true;
+let trails = [];
+let speedMult = 1;
+let gapOverride = 0;
+let trailOverride = 53; // explicit history length, 0 = no trail
+let numVertices = 4;
+let targetFps = 60;
+let fadeAlpha = 0.04;
+let lineThickness = 1;
+let lastFrameTime = 0;
+let wanderSpeed = 0; // 0 = off, 1–10
+
+// Wander: each property has a current float value and a slow random velocity
+const wander = {
+  fade:      { val: 5,   min: 1,   max: 10,  step: 1,   vel: 0 },
+  speed:     { val: 1,   min: 0.2, max: 4,   step: 0.1, vel: 0 },
+  thickness: { val: 1,   min: 1,   max: 10,  step: 0.5, vel: 0 },
+};
+
+let wanderTimer = 0;
+const WANDER_INTERVAL = 500; // ms between wander ticks
+const NUM_SHAPES = 2;
+
+// 8×8 Bayer ordered dither matrix (values 0–63, normalized to 0–1)
+const BAYER8 = [
+   0, 32,  8, 40,  2, 34, 10, 42,
+  48, 16, 56, 24, 50, 18, 58, 26,
+  12, 44,  4, 36, 14, 46,  6, 38,
+  60, 28, 52, 20, 62, 30, 54, 22,
+   3, 35, 11, 43,  1, 33,  9, 41,
+  51, 19, 59, 27, 49, 17, 57, 25,
+  15, 47,  7, 39, 13, 45,  5, 37,
+  63, 31, 55, 23, 61, 29, 53, 21
+].map(v => v / 64);
+
+function getTrailLength(count) {
+  return Math.round(60 - (count - 1) * 7);
+}
+
+function getDrawStep(count) {
+  return Math.max(1, 4 - Math.floor(count * 0.5));
+}
+
+function resize() {
+  W = canvas.width = offscreen.width = window.innerWidth;
+  H = canvas.height = offscreen.height = window.innerHeight;
+  // Clear offscreen to black on resize
+  octx.fillStyle = '#000';
+  octx.fillRect(0, 0, W, H);
+}
+
+class Corner {
+  constructor() {
+    this.x = Math.random() * W;
+    this.y = Math.random() * H;
+    this.vx = (Math.random() * 3 + 1.5) * (Math.random() < 0.5 ? 1 : -1);
+    this.vy = (Math.random() * 3 + 1.5) * (Math.random() < 0.5 ? 1 : -1);
+  }
+  update() {
+    this.x += this.vx * speedMult;
+    this.y += this.vy * speedMult;
+    if (this.x <= 0) { this.x = 0; this.vx = Math.abs(this.vx); }
+    if (this.x >= W) { this.x = W; this.vx = -Math.abs(this.vx); }
+    if (this.y <= 0) { this.y = 0; this.vy = Math.abs(this.vy); }
+    if (this.y >= H) { this.y = H; this.vy = -Math.abs(this.vy); }
+  }
+}
+
+class Shape {
+  constructor(numCorners, hue, trailLength, drawStep) {
+    this.numCorners = numCorners;
+    this.hue = hue;
+    this.trailLength = trailLength;
+    this.drawStep = drawStep;
+    this.corners = Array.from({length: numCorners}, () => new Corner());
+    this.history = [];
+  }
+
+  update() {
+    if (this.trailLength > 0) {
+      this.history.push(this.corners.map(c => ({x: c.x, y: c.y})));
+      if (this.history.length > this.trailLength) this.history.shift();
+    }
+    this.corners.forEach(c => c.update());
+    this.hue = (this.hue + 0.4) % 360;
+  }
+
+  // Draw to either the main ctx (color) or offscreen octx (B&W)
+  drawTo(target, isColor) {
+    const round = lineThickness > 1;
+    target.lineJoin = round ? 'round' : 'miter';
+    target.lineCap  = round ? 'round' : 'butt';
+    target.lineWidth = lineThickness;
+
+    const drawPoly = (pts) => {
+      target.beginPath();
+      target.moveTo(pts[0].x, pts[0].y);
+      for (let j = 1; j < pts.length; j++) target.lineTo(pts[j].x, pts[j].y);
+      // Explicitly close by returning to start — then step one more to ensure
+      // the closing join is rendered as a lineJoin, not a lineCap
+      target.lineTo(pts[0].x, pts[0].y);
+      target.lineTo(pts[1].x, pts[1].y);
+    };
+
+    // When trail is 0, just draw the current position as a single bright line
+    if (this.trailLength === 0) {
+      const pts = this.corners;
+      drawPoly(pts);
+      target.strokeStyle = isColor ? `hsla(${this.hue}, 100%, 65%, 1)` : '#fff';
+      target.stroke();
+      return;
+    }
+
+    const len = this.history.length;
+    for (let i = 0; i < len; i += this.drawStep) {
+      const pts = this.history[i];
+      const age = i / len;
+      const alpha = age * 0.9 + 0.05;
+
+      let strokeStyle;
+      if (isColor) {
+        const h = (this.hue - (len - i) * 2.5 + 360) % 360;
+        strokeStyle = `hsla(${h}, 100%, 65%, ${alpha})`;
+      } else {
+        const brightness = Math.round(age * 255);
+        strokeStyle = `rgb(${brightness},${brightness},${brightness})`;
+      }
+
+      drawPoly(pts);
+      target.strokeStyle = strokeStyle;
+      target.stroke();
+    }
+  }
+}
+
+function initShapes(count) {
+  trails = [];
+  const hues = [0, 120, 210, 280, 40, 170];
+  const trailLength = trailOverride;
+  const drawStep = gapOverride > 0 ? gapOverride : getDrawStep(count);
+  for (let i = 0; i < count; i++) {
+    trails.push(new Shape(numVertices, hues[i % hues.length] + Math.random() * 30, trailLength, drawStep));
+  }
+  // Reset offscreen when shapes change
+  octx.fillStyle = '#000';
+  octx.fillRect(0, 0, W, H);
+}
+
+// Apply Bayer ordered dithering: reads grayscale offscreen, writes 1-bit to main canvas
+function ditherToMain() {
+  const srcData = octx.getImageData(0, 0, W, H);
+  const src = srcData.data;
+
+  // Write dithered output directly
+  const dstData = ctx.createImageData(W, H);
+  const dst = dstData.data;
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const idx = (y * W + x) * 4;
+      const gray = src[idx] / 255; // 0..1
+      // Crush near-black values to zero before dithering — prevents residue dots
+      // from very faint lines that would otherwise pepper sparse Bayer pixels
+      const crushed = gray < 0.12 ? 0 : gray;
+      const threshold = BAYER8[(y % 8) * 8 + (x % 8)];
+      const bit = crushed > threshold ? 255 : 0;
+      dst[idx]     = bit;
+      dst[idx + 1] = bit;
+      dst[idx + 2] = bit;
+      dst[idx + 3] = 255;
+    }
+  }
+
+  ctx.putImageData(dstData, 0, 0);
+}
+
+// Helper: convert fade slider int 1-10 → fadeAlpha
+function fadeValToAlpha(v) {
+  return v === 10 ? 1 : 0.01 + (v - 1) / 9 * 0.3;
+}
+
+// Update a single wander property — nudge val by vel, bounce at boundaries
+function wanderStep(w, rate) {
+  // Randomly perturb velocity
+  w.vel += (Math.random() - 0.5) * rate;
+  w.vel *= 0.85; // dampen
+  w.val += w.vel;
+  if (w.val < w.min) { w.val = w.min; w.vel = Math.abs(w.vel); }
+  if (w.val > w.max) { w.val = w.max; w.vel = -Math.abs(w.vel); }
+  // Snap to step grid
+  return Math.round(w.val / w.step) * w.step;
+}
+
+function tickWander(timestamp) {
+  if (wanderSpeed === 0) return;
+  if (timestamp - wanderTimer < WANDER_INTERVAL) return;
+  wanderTimer = timestamp;
+
+  // Rate scales with wander speed (1=very slow, 10=fast)
+  const rate = wanderSpeed * 0.08;
+  const fadeLabels = ['min','','slow','','med','','fast','','','max'];
+
+  // Fade
+  const newFadeV = Math.round(wanderStep(wander.fade, rate * 0.5));
+  fadeAlpha = fadeValToAlpha(newFadeV);
+  document.getElementById('fadeSlider').value = newFadeV;
+  document.getElementById('fadeVal').textContent = fadeLabels[newFadeV - 1] || newFadeV;
+
+  // Speed
+  const newSpeed = Math.round(wanderStep(wander.speed, rate * 0.2) / 0.1) * 0.1;
+  speedMult = newSpeed;
+  document.getElementById('speedSlider').value = newSpeed;
+  document.getElementById('speedVal').textContent = newSpeed.toFixed(1) + '×';
+
+  // Thickness
+  const newThick = Math.round(wanderStep(wander.thickness, rate * 0.4) / 0.5) * 0.5;
+  lineThickness = newThick;
+  document.getElementById('thickSlider').value = newThick;
+  document.getElementById('thickVal').textContent = newThick % 1 === 0 ? newThick : newThick.toFixed(1);
+}
+
+function loop(timestamp) {
+  tickWander(timestamp);
+
+  const interval = 1000 / targetFps;
+  if (timestamp - lastFrameTime >= interval) {
+    lastFrameTime = timestamp - ((timestamp - lastFrameTime) % interval);
+
+    if (colorMode) {
+      ctx.fillStyle = `rgba(0,0,0,${fadeAlpha})`;
+      ctx.fillRect(0, 0, W, H);
+      trails.forEach(t => { t.update(); t.drawTo(ctx, true); });
+    } else {
+      octx.fillStyle = `rgba(0,0,0,${fadeAlpha * 1.5})`;
+      octx.fillRect(0, 0, W, H);
+      trails.forEach(t => { t.update(); t.drawTo(octx, false); });
+      ditherToMain();
+    }
+  }
+
+  requestAnimationFrame(loop);
+}
+
+// Controls
+const btnColor = document.getElementById('btnColor');
+const btnBW = document.getElementById('btnBW');
+btnColor.addEventListener('click', () => {
+  colorMode = true;
+  btnColor.classList.add('active');
+  btnBW.classList.remove('active');
+  // Clear main canvas when switching to color
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+});
+btnBW.addEventListener('click', () => {
+  colorMode = false;
+  btnBW.classList.add('active');
+  btnColor.classList.remove('active');
+  // Reset offscreen when switching to B&W
+  octx.fillStyle = '#000';
+  octx.fillRect(0, 0, W, H);
+});
+
+document.getElementById('linesSlider').addEventListener('input', (e) => {
+  const count = parseInt(e.target.value);
+  document.getElementById('linesVal').textContent = count;
+  initShapes(count);
+});
+
+document.getElementById('trailSlider').addEventListener('input', (e) => {
+  trailOverride = parseInt(e.target.value);
+  document.getElementById('trailVal').textContent = trailOverride;
+  initShapes(trails.length);
+});
+
+document.getElementById('vertSlider').addEventListener('input', (e) => {
+  numVertices = parseInt(e.target.value);
+  document.getElementById('vertVal').textContent = numVertices;
+  initShapes(trails.length);
+});
+
+document.getElementById('gapSlider').addEventListener('input', (e) => {
+  gapOverride = parseInt(e.target.value);
+  document.getElementById('gapVal').textContent = gapOverride === 0 ? 'auto' : gapOverride;
+  initShapes(trails.length);
+});
+
+document.getElementById('speedSlider').addEventListener('input', (e) => {
+  speedMult = parseFloat(e.target.value);
+  wander.speed.val = speedMult;
+  document.getElementById('speedVal').textContent = speedMult.toFixed(1) + '×';
+});
+
+document.getElementById('fadeSlider').addEventListener('input', (e) => {
+  const v = parseInt(e.target.value);
+  fadeAlpha = fadeValToAlpha(v);
+  wander.fade.val = v;
+  const labels = ['min','','slow','','med','','fast','','','max'];
+  document.getElementById('fadeVal').textContent = labels[v - 1] || v;
+});
+
+document.getElementById('wanderSlider').addEventListener('input', (e) => {
+  wanderSpeed = parseInt(e.target.value);
+  document.getElementById('wanderVal').textContent = wanderSpeed === 0 ? 'off' : wanderSpeed;
+  // Sync wander state to current slider values when enabling
+  if (wanderSpeed > 0) {
+    wander.fade.val      = (() => { const fv = Math.round(1 + (Math.min(fadeAlpha, 0.31) - 0.01) / 0.3 * 9); return Math.max(1, Math.min(10, fv)); })();
+    wander.speed.val     = speedMult;
+    wander.thickness.val = lineThickness;
+  }
+});
+
+document.getElementById('fpsSlider').addEventListener('input', (e) => {
+  targetFps = parseInt(e.target.value);
+  document.getElementById('fpsVal').textContent = targetFps;
+});
+
+document.getElementById('thickSlider').addEventListener('input', (e) => {
+  lineThickness = parseFloat(e.target.value);
+  wander.thickness.val = lineThickness;
+  document.getElementById('thickVal').textContent = lineThickness % 1 === 0 ? lineThickness : lineThickness.toFixed(1);
+});
+
+document.getElementById('btnRandom').addEventListener('click', () => {
+  const pick = (min, max, step) => {
+    const steps = Math.round((max - min) / step);
+    return min + Math.round(Math.random() * steps) * step;
+  };
+
+  const shapes = pick(1, 6, 1);
+  const trail  = pick(0, 120, 1);
+  const verts  = pick(2, 8, 1);
+  const gap    = pick(0, 8, 1);
+  const fade   = pick(1, 10, 1);
+  const speed  = pick(0.2, 4, 0.1);
+  const fps    = pick(5, 60, 1);
+  const thick  = pick(1, 10, 0.5);
+
+  // Apply values
+  trailOverride = trail;
+  numVertices   = verts;
+  gapOverride   = gap;
+  speedMult     = speed;
+  targetFps     = fps;
+  lineThickness = thick;
+  fadeAlpha     = fadeValToAlpha(fade);
+
+  // Sync wander state to new values
+  wander.fade.val      = fade;
+  wander.speed.val     = speed;
+  wander.thickness.val = thick;
+
+  // Update sliders
+  document.getElementById('linesSlider').value = shapes;
+  document.getElementById('linesVal').textContent = shapes;
+  document.getElementById('trailSlider').value = trail;
+  document.getElementById('trailVal').textContent = trail;
+  document.getElementById('vertSlider').value = verts;
+  document.getElementById('vertVal').textContent = verts;
+  document.getElementById('gapSlider').value = gap;
+  document.getElementById('gapVal').textContent = gap === 0 ? 'auto' : gap;
+  document.getElementById('fadeSlider').value = fade;
+  const fadeLabels = ['min','','slow','','med','','fast','','','max'];
+  document.getElementById('fadeVal').textContent = fadeLabels[fade - 1] || fade;
+  document.getElementById('speedSlider').value = speed;
+  document.getElementById('speedVal').textContent = speed.toFixed(1) + '×';
+  document.getElementById('thickSlider').value = thick;
+  document.getElementById('thickVal').textContent = thick % 1 === 0 ? thick : thick.toFixed(1);
+
+  initShapes(shapes);
+});
+
+// Show/hide UI on tap/click
+const ui = document.getElementById('ui');
+const label = document.getElementById('label');
+
+function showUI() {
+  ui.classList.add('visible');
+  label.classList.add('visible');
+}
+function hideUI() {
+  ui.classList.remove('visible');
+  label.classList.remove('visible');
+}
+
+canvas.addEventListener('pointerdown', showUI);
+
+document.addEventListener('pointerdown', (e) => {
+  if (!ui.contains(e.target) && e.target !== canvas) hideUI();
+  else if (e.target === canvas) showUI();
+});
+
+// Also hide when clicking outside on desktop
+document.addEventListener('click', (e) => {
+  if (!ui.contains(e.target)) hideUI();
+});
+
+window.addEventListener('resize', () => {
+  resize();
+  initShapes(trails.length);
+});
+
+resize();
+initShapes(NUM_SHAPES);
+loop();
+</script>
+</body>
+</html>
