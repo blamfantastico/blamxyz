@@ -209,6 +209,11 @@ let cornerRadius = 0; // Catmull-Rom tension, 0 = straight lines, 1 = fully curv
 let lastFrameTime = 0;
 let wanderSpeed = 3; // 0 = off, 1–10
 let debugMode = false;
+let mouseDown = false;
+let mousePos = { x: 0, y: 0 };
+const CLICK_STRENGTH = 1200;
+const CLICK_MIN_DIST = 200;
+const CLICK_MAX_SPD = 40;
 let debugPrev = {}; // saved state for restoring after debug
 
 // Wander: each property has a current float value and a slow random velocity
@@ -593,12 +598,30 @@ function tickWander(timestamp) {
   });
 }
 
+function applyMouseForce() {
+  trails.forEach(t => {
+    t.corners.forEach(c => {
+      if (c.lerpTarget) return;
+      const dx = mousePos.x - c.x;
+      const dy = mousePos.y - c.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const impulse = CLICK_STRENGTH / (dist + CLICK_MIN_DIST);
+      c.vx += (dx / dist) * impulse;
+      c.vy += (dy / dist) * impulse;
+      const spd = Math.sqrt(c.vx * c.vx + c.vy * c.vy);
+      if (spd > CLICK_MAX_SPD) { c.vx = c.vx / spd * CLICK_MAX_SPD; c.vy = c.vy / spd * CLICK_MAX_SPD; }
+    });
+  });
+}
+
 function loop(timestamp) {
   tickWander(timestamp);
 
   const interval = 1000 / targetFps;
   if (timestamp - lastFrameTime >= interval) {
     lastFrameTime = timestamp - ((timestamp - lastFrameTime) % interval);
+
+    if (mouseDown) applyMouseForce();
 
     if (colorMode) {
       ctx.fillStyle = '#000';
@@ -815,14 +838,36 @@ function hideUI() {
   ui.classList.remove('visible');
 }
 
-canvas.addEventListener('pointerdown', () => {
-  ui.classList.contains('visible') ? hideUI() : showUI();
+canvas.addEventListener('pointerdown', (e) => {
+  if (ui.classList.contains('visible')) { hideUI(); return; }
+  const rect = canvas.getBoundingClientRect();
+  mousePos.x = e.clientX - rect.left;
+  mousePos.y = e.clientY - rect.top;
+  mouseDown = true;
+});
+
+document.addEventListener('pointermove', (e) => {
+  if (!mouseDown) return;
+  const rect = canvas.getBoundingClientRect();
+  mousePos.x = e.clientX - rect.left;
+  mousePos.y = e.clientY - rect.top;
+});
+
+document.addEventListener('pointerup', () => {
+  if (!mouseDown) return;
+  mouseDown = false;
+  const RELEASE_MAX = 4.5;
+  trails.forEach(t => t.corners.forEach(c => {
+    const spd = Math.sqrt(c.vx * c.vx + c.vy * c.vy);
+    if (spd > RELEASE_MAX) { c.vx = c.vx / spd * RELEASE_MAX; c.vy = c.vy / spd * RELEASE_MAX; }
+  }));
 });
 
 document.addEventListener('keydown', (e) => {
   if (e.code === 'Space' && e.target === document.body) {
     e.preventDefault();
     ui.classList.contains('visible') ? hideUI() : showUI();
+    return;
   }
   if (e.code === 'KeyD' && e.target === document.body) {
     debugMode = !debugMode;
