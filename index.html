@@ -211,6 +211,8 @@ let wanderSpeed = 3; // 0 = off, 1–10
 let debugMode = false;
 let mouseDown = false;
 let mousePos = { x: 0, y: 0 };
+let mouseVel = { x: 0, y: 0 };
+let mousePrevTime = 0;
 const CLICK_STRENGTH = 1200;
 const CLICK_MIN_DIST = 200;
 const CLICK_MAX_SPD = 40;
@@ -219,7 +221,7 @@ let debugPrev = {}; // saved state for restoring after debug
 // Wander: each property has a current float value and a slow random velocity
 const wander = {
   fade:      { val: 5,   min: 1,   max: 10,  step: 1,   vel: 0 },
-  speed:     { val: 1,   min: 0.2, max: 4,   step: 0.1, vel: 0 },
+  speed:     { val: 1,   min: 0.2, max: 4,   step: 0.1, vel: 0, bias: 1.5 },
   thickness: { val: 1,   min: 1,   max: 10,  step: 0.5, vel: 0 },
   vertices:  { val: 4,   min: -12, max: 16,  step: 1,   vel: 0, fold: 2 },
   trail:     { val: 53,  min: -120, max: 120, step: 1,   vel: 0, fold: 0 },
@@ -516,6 +518,7 @@ function fadeValToAlpha(v) {
 // This lets the wander cross the minimum naturally rather than bouncing off it.
 function wanderStep(w, rate) {
   w.vel += (Math.random() - 0.5) * rate;
+  if (w.bias !== undefined) w.vel += (w.bias - w.val) * 0.025;
   w.vel *= 0.85;
   w.val += w.vel;
   if (w.val < w.min) { w.val = w.min; w.vel = Math.abs(w.vel); }
@@ -843,23 +846,40 @@ canvas.addEventListener('pointerdown', (e) => {
   const rect = canvas.getBoundingClientRect();
   mousePos.x = e.clientX - rect.left;
   mousePos.y = e.clientY - rect.top;
+  mouseVel.x = 0;
+  mouseVel.y = 0;
+  mousePrevTime = performance.now();
   mouseDown = true;
 });
 
 document.addEventListener('pointermove', (e) => {
   if (!mouseDown) return;
   const rect = canvas.getBoundingClientRect();
-  mousePos.x = e.clientX - rect.left;
-  mousePos.y = e.clientY - rect.top;
+  const nx = e.clientX - rect.left;
+  const ny = e.clientY - rect.top;
+  const now = performance.now();
+  const dt = Math.max(now - mousePrevTime, 1);
+  // Normalize raw delta to px/frame at 60fps, then smooth with EMA
+  const fps60 = 1000 / 60;
+  const rawVx = (nx - mousePos.x) / dt * fps60;
+  const rawVy = (ny - mousePos.y) / dt * fps60;
+  mouseVel.x = mouseVel.x * 0.4 + rawVx * 0.6;
+  mouseVel.y = mouseVel.y * 0.4 + rawVy * 0.6;
+  mousePrevTime = now;
+  mousePos.x = nx;
+  mousePos.y = ny;
 });
 
 document.addEventListener('pointerup', () => {
   if (!mouseDown) return;
   mouseDown = false;
-  const RELEASE_MAX = 4.5;
+  const THROW_SCALE = 0.4;
   trails.forEach(t => t.corners.forEach(c => {
+    if (c.lerpTarget) return;
+    c.vx += mouseVel.x * THROW_SCALE;
+    c.vy += mouseVel.y * THROW_SCALE;
     const spd = Math.sqrt(c.vx * c.vx + c.vy * c.vy);
-    if (spd > RELEASE_MAX) { c.vx = c.vx / spd * RELEASE_MAX; c.vy = c.vy / spd * RELEASE_MAX; }
+    if (spd > CLICK_MAX_SPD) { c.vx = c.vx / spd * CLICK_MAX_SPD; c.vy = c.vy / spd * CLICK_MAX_SPD; }
   }));
 });
 
