@@ -874,12 +874,15 @@ document.addEventListener('pointerup', () => {
   if (!mouseDown) return;
   mouseDown = false;
   const THROW_SCALE = 0.4;
+  const RELEASE_MAX = 4.5;
+  const throwSpd = Math.sqrt(mouseVel.x ** 2 + mouseVel.y ** 2) * THROW_SCALE;
+  const releaseMax = Math.max(throwSpd, RELEASE_MAX);
   trails.forEach(t => t.corners.forEach(c => {
     if (c.lerpTarget) return;
     c.vx += mouseVel.x * THROW_SCALE;
     c.vy += mouseVel.y * THROW_SCALE;
     const spd = Math.sqrt(c.vx * c.vx + c.vy * c.vy);
-    if (spd > CLICK_MAX_SPD) { c.vx = c.vx / spd * CLICK_MAX_SPD; c.vy = c.vy / spd * CLICK_MAX_SPD; }
+    if (spd > releaseMax) { c.vx = c.vx / spd * releaseMax; c.vy = c.vy / spd * releaseMax; }
   }));
 });
 
