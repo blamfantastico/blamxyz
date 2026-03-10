@@ -518,7 +518,7 @@ function fadeValToAlpha(v) {
 // This lets the wander cross the minimum naturally rather than bouncing off it.
 function wanderStep(w, rate) {
   w.vel += (Math.random() - 0.5) * rate;
-  if (w.bias !== undefined) w.vel += (w.bias - w.val) * 0.025;
+  if (w.bias !== undefined) w.vel += (w.bias - w.val) * 0.025 * (1 + Math.max(0, w.val - 0.8));
   w.vel *= 0.85;
   w.val += w.vel;
   if (w.val < w.min) { w.val = w.min; w.vel = Math.abs(w.vel); }
