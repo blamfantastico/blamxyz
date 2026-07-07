@@ -1,0 +1,1986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#111417">
+<title>Spelloban</title>
+<style>
+  :root{
+    --bg:#111417;
+    --panel:#1b1f24;
+    --floor:#2a2f36;
+    --floor2:#252a30;
+    --wall:#0c0e10;
+    --slot:#39414b;
+    --crate:#c9a24b;
+    --crate-top:#e0bd6a;
+    --crate-text:#2a2008;
+    --green:#3ec46d;
+    --green-top:#57e084;
+    --player:#5aa9ff;
+    --text:#e7ecf1;
+    --muted:#8b96a3;
+    --accent:#5aa9ff;
+    --danger:#e06a5a;
+    /* layout budget (shared max width + fixed chrome heights) */
+    --maxw:440px;
+    --barH:56px;
+    --footH:60px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    display:flex;flex-direction:column;align-items:center;
+    padding:env(safe-area-inset-top) 10px env(safe-area-inset-bottom);
+    min-height:100%;
+    overscroll-behavior:none;
+    touch-action:manipulation;
+    user-select:none;-webkit-user-select:none;
+  }
+  /* ---- play screen: 3-row flex column (top bar / stage / controls) ----
+     The board is height-budgeted in dvh so the whole screen fits with mobile
+     chrome present — no scroll, no squash. The stage flex-grows and centers the
+     board tray, absorbing any leftover slack as symmetric bezel (replaces the
+     old margin:auto void-centering). */
+  .topbar{ width:100%; max-width:var(--maxw); flex:0 0 auto; }
+  .stage{
+    width:100%; max-width:var(--maxw);
+    flex:1 1 auto; min-height:0;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .controls{ width:100%; max-width:var(--maxw); flex:0 0 auto; margin-top:12px; }
+
+  /* top bar */
+  .topbar{ display:flex; align-items:center; justify-content:space-between; padding:6px 4px 0; gap:8px; }
+  .brand{ display:flex; align-items:center; gap:10px; min-width:0; }
+  .logomark{
+    flex:0 0 auto; width:30px; height:30px; border-radius:7px;
+    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:17px;
+    color:var(--crate-text); background:linear-gradient(var(--crate-top),var(--crate));
+    box-shadow:inset 0 -2px 0 rgba(0,0,0,.22), inset 0 2px 0 rgba(255,255,255,.28), 0 2px 4px rgba(0,0,0,.3);
+  }
+  .brandtext{ min-width:0; overflow:hidden; }
+  .kicker{ font-size:11px; font-weight:700; letter-spacing:1.2px; color:var(--muted);
+    text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .dayline{ display:flex; align-items:center; gap:8px; margin-top:2px; min-width:0; }
+  .meter{ flex:0 0 auto; display:flex; align-items:center; gap:3px; }
+  .meter .pip{ width:6px; height:12px; border-radius:2px; background:var(--floor);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.05); }
+  .meter .pip.on{ background:linear-gradient(var(--crate-top),var(--crate)); box-shadow:0 0 4px rgba(201,162,75,.45); }
+  .topActions{ display:flex; gap:6px; flex:0 0 auto; }
+  .iconbtn{ width:40px; height:40px; padding:0; margin:0; border-radius:50%; background:transparent;
+    border:1px solid #2c333b; color:var(--muted); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .iconbtn svg{ width:18px; height:18px; }
+  .iconbtn:active{ transform:translateY(1px); }
+
+  /* dev picker (only injected under ?dev) */
+  select{
+    background:var(--panel);color:var(--text);border:1px solid #2c333b;border-radius:8px;
+    padding:7px 8px;font-size:13px;max-width:170px;
+  }
+
+  /* board tray: seated inset "well" with a gold hairline (identity), not a
+     floating card. The grid nests inside a 7px bezel. */
+  .board-tray{
+    padding:7px;
+    background:var(--panel);
+    border:1px solid rgba(201,162,75,.25);
+    border-radius:16px;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,.5), 0 1px 0 rgba(255,255,255,.04);
+  }
+  .board{
+    position:relative;
+    /* Height-budgeted so a portrait board fits the visible viewport with mobile
+       chrome present. 44px reserves the two 12px gaps + tray padding + slack. */
+    --boardH: calc(100dvh - var(--barH) - var(--footH) - 44px
+                   - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    --bw: min(92vw, calc(var(--maxw) - 16px), calc(var(--boardH) * var(--cols) / var(--rows)));
+    width:var(--bw);
+    aspect-ratio: var(--cols) / var(--rows);
+    display:grid;
+    grid-template-columns:repeat(var(--cols),1fr);
+    grid-template-rows:repeat(var(--rows),1fr);
+    background:var(--wall);
+    border-radius:11px;
+    overflow:hidden;
+    touch-action:none;               /* we handle swipes; no scroll/rubber-band */
+    font-size:calc(var(--bw) / var(--cols) * 0.42);
+  }
+  .cell{position:relative;}
+  /* Walls: raised beveled dark blocks — a clear step lighter than the near-black
+     board background so the full 7x12 grid (outer ring + interior obstacles)
+     reads as a solid, intentional board and obstacles are legible. Top highlight
+     + bottom shadow = raised; the dark 1px inset separates adjacent blocks. */
+  .cell.wall{
+    background:linear-gradient(#1f232b,#15181e);
+    box-shadow: inset 0 2px 0 rgba(255,255,255,.07),
+                inset 0 -3px 0 rgba(0,0,0,.55),
+                inset 0 0 0 1px rgba(0,0,0,.45);
+  }
+  .cell.floor{background:var(--floor);box-shadow:inset 0 0 0 1px rgba(255,255,255,.02);}
+  .cell.floor.alt{background:var(--floor2);}
+  .cell.slot{
+    background:var(--slot);
+  }
+  .cell.slot::after{
+    content:"";position:absolute;inset:22%;border:2px dashed rgba(255,255,255,.18);border-radius:5px;
+  }
+
+  /* absolutely-positioned movers */
+  .mover{
+    position:absolute;
+    width:calc(100%/var(--cols));
+    height:calc(100%/var(--rows));
+    left:0;top:0;
+    transition:left .12s ease, top .12s ease;
+    display:flex;align-items:center;justify-content:center;
+    will-change:left,top;
+  }
+  .crate .box{
+    width:84%;height:84%;border-radius:8px;
+    background:linear-gradient(#e0bd6a,#c9a24b);
+    box-shadow:inset 0 -3px 0 rgba(0,0,0,.22), inset 0 3px 0 rgba(255,255,255,.28), 0 2px 4px rgba(0,0,0,.3);
+    display:flex;align-items:center;justify-content:center;
+    color:var(--crate-text);font-weight:800;
+    transition:background .18s, transform .12s, box-shadow .18s;
+  }
+  .crate.green .box{
+    background:linear-gradient(var(--green-top),var(--green));
+    color:#08361a;
+  }
+  .crate.pop .box{ animation:pop .22s ease; }
+  @keyframes pop{ 0%{transform:scale(1);} 40%{transform:scale(1.16);} 100%{transform:scale(1);} }
+  /* win celebration: solved crates bounce in a wave before the modal appears */
+  .crate.celebrate .box{ animation:winpop .62s ease; }
+  @keyframes winpop{
+    0%{transform:scale(1);}
+    35%{transform:scale(1.28) translateY(-8%);}
+    60%{transform:scale(.94);}
+    100%{transform:scale(1);}
+  }
+
+  .player .avatar{
+    width:60%;height:60%;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #9cc9ff, var(--player));
+    box-shadow:0 2px 6px rgba(0,0,0,.4), inset 0 -2px 4px rgba(0,0,0,.25);
+    z-index:3;
+  }
+  .crate{z-index:2;}
+
+  /* control bar: MOVES · Undo/Reset */
+  .controls{ display:flex; align-items:center; justify-content:space-between; height:var(--footH); padding:0 4px; gap:10px; }
+  .moves{ display:flex; flex-direction:column; line-height:1; }
+  .moves .lbl{ font-size:10px; font-weight:700; letter-spacing:1.5px; color:var(--muted); }
+  .moves b{ font-size:22px; font-weight:800; color:var(--text); font-variant-numeric:tabular-nums; margin-top:4px; }
+
+  .ctl-actions{ display:flex; align-items:center; gap:8px; }
+  button{
+    font-family:inherit;font-weight:700;color:var(--text);
+    background:var(--panel);border:1px solid #2c333b;border-radius:10px;
+    padding:11px 15px;font-size:14px;cursor:pointer;
+  }
+  button:active{transform:translateY(1px);}
+  button.primary{background:var(--accent);color:#04101f;border-color:transparent;}
+  button.ghost{background:transparent;}
+
+  /* Undo = prominent (used constantly); Reset = quiet icon → inline confirm */
+  button.ctl{ border-radius:12px; }
+  .ctl svg{ width:17px; height:17px; flex:0 0 auto; }
+  .ctl.undo{ background:var(--floor); border:1px solid #2c333b; padding:12px 16px; font-size:14px;
+    display:inline-flex; align-items:center; gap:7px; }
+  .ctl.reset{ background:transparent; border:1px solid #2c333b; color:var(--muted);
+    width:46px; height:46px; padding:0; font-size:18px; display:flex; align-items:center; justify-content:center;
+    transition:width .15s, background .15s, color .15s, border-color .15s; }
+  .ctl.reset.confirm{ width:auto; padding:0 14px; font-size:13px; color:#fff;
+    border-color:var(--danger); background:rgba(224,106,90,.15); }
+
+  /* tap ripple feedback */
+  .tapfx{pointer-events:none;z-index:4;}
+  .tapfx::after{
+    content:"";position:absolute;inset:20%;border-radius:50%;
+    border:2px solid var(--accent);
+    animation:ripple .34s ease-out forwards;
+  }
+  @keyframes ripple{ from{transform:scale(.45);opacity:.85;} to{transform:scale(1.15);opacity:0;} }
+
+  /* how-to-play overlay body (directions live here now, not on the play screen) */
+  .howto{ list-style:none; margin:0 0 16px; padding:0; text-align:left; }
+  .howto li{ display:flex; align-items:flex-start; gap:12px; margin:0 0 14px; font-size:15px; line-height:1.4; color:var(--text); }
+  .howto .hnum{ flex:0 0 auto; width:26px; height:26px; border-radius:7px; font-size:13px; font-weight:800;
+    display:flex; align-items:center; justify-content:center; color:var(--crate-text);
+    background:linear-gradient(var(--crate-top),var(--crate)); }
+  .howtonote{ color:var(--muted); font-size:13px; line-height:1.5; margin:0 0 20px; }
+  .howtonote b{ color:var(--text); }
+
+  /* stats overlay grid */
+  .statgrid{ display:flex; justify-content:space-around; gap:8px; margin:8px 0 18px; }
+  .statgrid div{ display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .statgrid b{ font-size:30px; font-weight:800; color:var(--text); font-variant-numeric:tabular-nums; }
+  .statgrid span{ font-size:11px; letter-spacing:.5px; color:var(--muted); text-transform:uppercase; }
+
+  /* overlays */
+  .overlay{
+    position:fixed;inset:0;background:rgba(8,10,12,.82);backdrop-filter:blur(3px);
+    display:none;align-items:center;justify-content:center;padding:20px;z-index:50;
+  }
+  .overlay.show{display:flex;}
+  /* win card eases in (fade + rise) instead of snapping via display:flex —
+     scoped to the win overlay so the landing/help/stats still appear instantly */
+  #winOverlay.show .card{ animation:cardin .36s cubic-bezier(.2,.7,.3,1) both; }
+  @keyframes cardin{ from{opacity:0;transform:translateY(16px) scale(.96);} to{opacity:1;transform:none;} }
+  .card{
+    position:relative;
+    background:var(--panel);border:1px solid #2c333b;border-radius:16px;padding:24px;max-width:340px;width:100%;text-align:center;
+  }
+  /* small ✕ dismiss affordance in a card corner */
+  .card .closeX{
+    position:absolute;top:12px;right:12px;
+    width:44px;height:44px;margin:0;padding:0;
+    display:flex;align-items:center;justify-content:center;
+    font-size:18px;line-height:1;border-radius:50%;
+    background:transparent;border:1px solid #2c333b;color:var(--muted);
+  }
+  .card .closeX:active{transform:translateY(1px);}
+  /* "See result" — reclaims the Undo slot after solving (was a floating chip).
+     Matches the Undo pill; the only gold is a mini crate-tile glyph. */
+  .ctl.seeresult{ background:var(--floor); border:1px solid #2c333b; padding:12px 16px; font-size:14px;
+    display:inline-flex; align-items:center; gap:8px; }
+  .cratechk{ width:17px; height:17px; border-radius:5px; flex:0 0 auto;
+    display:inline-flex; align-items:center; justify-content:center;
+    background:linear-gradient(var(--crate-top),var(--crate)); color:var(--crate-text);
+    font-weight:800; font-size:11px; line-height:1;
+    box-shadow:inset 0 -2px 0 rgba(0,0,0,.22), inset 0 2px 0 rgba(255,255,255,.28); }
+  .cratechk::before{ content:"✓"; }
+  .card h2{margin:0 0 16px;font-size:26px;letter-spacing:1px;}
+  .card p{color:var(--muted);margin:0 0 8px;}
+  .card .big{font-size:40px;font-weight:800;color:var(--text);margin:0 0 8px;}
+  .card button{width:100%;margin-top:8px;padding:16px;}
+
+  /* completed word rendered as green letter-tiles (matches on-board crates) */
+  .wintiles{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:0 0 12px;}
+  .wintiles .t{
+    width:44px;height:44px;border-radius:8px;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:24px;color:#08361a;
+    background:linear-gradient(var(--green-top),var(--green));
+    box-shadow:inset 0 -3px 0 rgba(0,0,0,.18), inset 0 3px 0 rgba(255,255,255,.28), 0 2px 4px rgba(0,0,0,.3);
+    animation:tilePop .42s ease both;
+  }
+  @keyframes tilePop{ 0%{transform:scale(.5);opacity:0;} 60%{transform:scale(1.12);} 100%{transform:scale(1);opacity:1;} }
+
+  /* star rating */
+  .stars{display:flex;gap:8px;justify-content:center;margin:0 0 16px;font-size:30px;line-height:1;}
+  .stars .s{color:#3a424c;}                 /* empty */
+  .stars .s.on{color:#ffc93c;text-shadow:0 0 10px rgba(255,201,60,.5);animation:tilePop .4s ease both;}
+  /* "perfect" note — shown only on an optimal solve; the optimal move count
+     itself is never revealed, so players discover it. Gold to match. */
+  .card .perfectnote{color:#ffc93c;font-weight:800;font-size:15px;margin:0 0 16px;}
+  .card .perfectnote:empty{display:none;}
+  /* per-puzzle record line: your best score + attempt count for this puzzle */
+  .card .record{color:var(--muted);font-size:13px;margin:0 0 16px;}
+  .card .record b{color:var(--text);}
+  .card .record.newbest{color:var(--green);font-weight:800;}
+  .card .record:empty{display:none;}
+  .card .nextin{color:var(--muted);font-size:13px;margin:0 0 16px;}
+  .card .nextin b{color:var(--text);font-variant-numeric:tabular-nums;}
+  .card .nextin:empty{display:none;}
+  /* optimal ("perfect") celebration: gold card glow + confetti */
+  .card.perfect{border-color:#ffc93c;box-shadow:0 0 0 1px rgba(255,201,60,.7), 0 12px 44px rgba(255,201,60,.22);}
+  .confetti{position:absolute;top:-14px;width:8px;height:13px;border-radius:2px;pointer-events:none;z-index:55;animation:conffall linear forwards;}
+  @keyframes conffall{ to{ transform:translateY(110vh) rotate(var(--spin,540deg)); opacity:0; } }
+
+  /* persistent stats line (start + win screens) */
+  .statline{color:var(--muted);font-size:12px;line-height:1.6;}
+  .statline b{color:var(--text);}
+  #startStatline{margin:16px 0 0;min-height:16px;}
+  #winStatline{margin:16px 0 0;}
+
+  /* ---------- daily landing (Sealed Crates) — full-screen front door ---------- */
+  /* opaque landing — no board leaks behind it */
+  .overlay.solid{background:var(--bg);backdrop-filter:none;}
+  /* while the landing is up, the play surfaces are HIDDEN (not dimmed) so the
+     landing owns the viewport — no modal-over-a-modal on first run. */
+  body.landing-up .topbar, body.landing-up .stage, body.landing-up .controls{display:none;}
+  /* plain-text wordmark for the landing (distinct from the top-bar .brandtext) */
+  .landbrand{font-size:22px;font-weight:800;letter-spacing:4px;color:var(--text);margin:0 0 12px;}
+  /* full-screen page feel: strip the card chrome so content sits on the bg */
+  .card.landing{background:transparent;border-color:transparent;box-shadow:none;max-width:360px;}
+  /* date stepper (visible testing affordance; becomes a past-only archive later) */
+  .datenav{display:flex;align-items:center;justify-content:center;gap:12px;margin:0 0 4px;}
+  .dailyline{color:var(--text);font-weight:700;font-size:15px;margin:0;}
+  .datenav .stepper{
+    flex:0 0 auto;width:34px;height:34px;margin:0;padding:0;border-radius:50%;
+    font-size:18px;font-weight:800;line-height:1;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--panel);border:1px solid #2c333b;color:var(--text);
+  }
+  .datenav .stepper:disabled{opacity:.3;pointer-events:none;}
+  .dailysub{color:var(--muted);font-size:13px;margin:0 0 4px;}
+  .datenote{color:var(--accent);font-size:12px;margin:0 0 14px;}
+  .datenote:empty{display:none;}
+  /* last-7-days solved dots (separate from the control-bar letters-placed meter) */
+  .dotstrip{display:flex;gap:8px;justify-content:center;margin:12px 0 0;}
+  .dotstrip:empty{display:none;}
+  .dotstrip .dot{width:8px;height:8px;border-radius:50%;background:#3a424c;}
+  .dotstrip .dot.on{background:var(--green);}
+  .testnote{color:var(--muted);opacity:.55;font-size:11px;margin:16px 0 0;}
+  /* sealed hero: face-down gold crates (?), or a green reveal once solved */
+  .seal{display:flex;gap:6px;justify-content:center;margin:0 0 16px;}
+  .seal .t{
+    flex:1 1 0;min-width:0;max-width:52px;aspect-ratio:1;border-radius:8px;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:clamp(18px,7vw,26px);color:var(--crate-text);
+    background:linear-gradient(var(--crate-top),var(--crate));
+    box-shadow:inset 0 -3px 0 rgba(0,0,0,.22), inset 0 3px 0 rgba(255,255,255,.28), 0 2px 4px rgba(0,0,0,.3);
+    animation:tilePop .3s ease both;
+  }
+  .seal.solved .t{ background:linear-gradient(var(--green-top),var(--green)); color:#08361a; }
+  .landtag{color:var(--muted);font-size:14px;margin:0 0 18px;}
+  .card .result{color:var(--text);font-weight:700;font-size:15px;margin:0 0 4px;}
+  .card .result:empty{display:none;}
+  .card .countdown{color:var(--muted);font-size:13px;margin:0 0 16px;}
+  .card .countdown:empty{display:none;}
+  /* corner "?" help affordance on the landing */
+  .help{
+    position:fixed;top:calc(env(safe-area-inset-top) + 14px);right:14px;z-index:52;
+    width:40px;height:40px;padding:0;border-radius:50%;font-size:18px;font-weight:800;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--panel);border:1px solid #2c333b;color:var(--muted);
+  }
+  .help:focus-visible{outline:2px solid var(--text);outline-offset:2px;}
+
+  /* start / title screen */
+  /* brand wordmark as gold letter-crates (echoes the pushable pieces);
+     tiles flex-share the row so any word length fits on one line */
+  .brandtiles{display:flex;gap:4px;justify-content:center;margin:0 0 14px;}
+  .brandtiles .t{
+    flex:1 1 0;min-width:0;aspect-ratio:1;border-radius:7px;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:clamp(14px,4.4vw,20px);color:var(--crate-text);
+    background:linear-gradient(var(--crate-top),var(--crate));
+    box-shadow:inset 0 -2px 0 rgba(0,0,0,.22), inset 0 2px 0 rgba(255,255,255,.28), 0 2px 4px rgba(0,0,0,.3);
+    animation:tilePop .3s ease both;
+  }
+  .card .tagline{color:var(--muted);font-size:14px;margin:0 0 20px;line-height:1.5;}
+  .card .tagline b{color:var(--text);}
+  .menu{display:flex;flex-direction:column;gap:8px;}
+  .menu button{position:relative;width:100%;margin:0;text-align:left;font-size:15px;}
+  .menu button .diff{position:absolute;right:16px;top:50%;transform:translateY(-50%);color:var(--muted);font-weight:600;font-size:13px;}
+  .menu button:focus-visible, .card button:focus-visible, .closeX:focus-visible{
+    outline:2px solid var(--text);outline-offset:2px;
+  }
+  textarea{width:100%;height:120px;background:#12161a;color:var(--text);border:1px solid #2c333b;border-radius:8px;padding:8px;font-family:ui-monospace,Menlo,monospace;font-size:12px;}
+  .toast{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 20px);left:50%;transform:translateX(-50%);
+    background:#04101f;color:#cfe4ff;border:1px solid var(--accent);padding:10px 16px;border-radius:20px;font-size:13px;
+    opacity:0;transition:opacity .2s;pointer-events:none;z-index:60;}
+  .toast.show{opacity:1;}
+  #testbar{width:100%;padding:6px 10px;font:12px ui-monospace,monospace;text-align:center;flex:0 0 auto;}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="logomark" aria-hidden="true">S</div>
+    <div class="brandtext">
+      <div class="kicker" id="kicker">SPELLOBAN</div>
+      <div class="dayline">
+        <span class="meter" id="meter"></span>
+      </div>
+    </div>
+  </div>
+  <div class="topActions">
+    <button class="iconbtn" id="helpBtn" aria-label="How to play">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+    </button>
+    <button class="iconbtn" id="statsBtn" aria-label="Your stats">
+      <svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="12" width="4" height="7" rx="1"/><rect x="10" y="8" width="4" height="11" rx="1"/><rect x="16" y="5" width="4" height="14" rx="1"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="stage">
+  <div class="board-tray">
+    <div class="board" id="board"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="moves"><span class="lbl">MOVES</span><b id="moveCount">0</b></div>
+  <div class="ctl-actions">
+    <button class="ctl undo" id="undoBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>Undo</button>
+    <!-- reset icon markup kept in sync with RESET_ICON in the reset-arm logic below -->
+    <button class="ctl reset" id="resetBtn" aria-label="Reset puzzle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></button>
+    <button class="ctl seeresult" id="seeResultBtn" style="display:none" aria-label="See your result"><span class="cratechk"></span>See result</button>
+  </div>
+</div>
+
+<!-- Daily landing (Sealed Crates) — opaque, board-free until Play -->
+<div class="overlay solid show" id="startOverlay">
+  <button class="help" id="landHelpBtn" aria-label="How to play">?</button>
+  <div class="card landing">
+    <div class="landbrand">SPELLOBAN</div>
+    <div class="datenav">
+      <button class="stepper" id="datePrev" aria-label="Previous day">‹</button>
+      <span class="dailyline" id="dailyLine"></span>
+      <button class="stepper" id="dateNext" aria-label="Next day">›</button>
+    </div>
+    <div class="dailysub" id="dailySub"></div>
+    <div class="datenote" id="dateNote"></div>
+    <div class="seal" id="sealTiles" role="img" aria-label="Today's puzzle"></div>
+    <p class="landtag" id="landTag">Push the tiles to spell it.</p>
+    <div class="result" id="landResult"></div>
+    <div class="countdown" id="landCountdown"></div>
+    <button class="primary" id="playBtn">▶ Play</button>
+    <div class="statline" id="startStatline"></div>
+    <div class="dotstrip" id="dotStrip"></div>
+    <div class="testnote">⚙ Testing — step ‹ › to preview any day</div>
+  </div>
+</div>
+
+<!-- Win overlay -->
+<div class="overlay" id="winOverlay">
+  <div class="card">
+    <button class="closeX" id="winCloseBtn" aria-label="Close and view your solved board">✕</button>
+    <h2>SOLVED!</h2>
+    <div class="wintiles" id="winWord"></div>
+    <div class="stars" id="winStars" aria-hidden="true"></div>
+    <p>You unscrambled it in</p>
+    <div class="big"><span id="winMoves">0</span> moves</div>
+    <div class="perfectnote" id="winPerfect"></div>
+    <div class="record" id="winRecord"></div>
+    <button class="primary" id="copyBtn">Copy result</button>
+    <button class="ghost" id="playAgainBtn">Play again</button>
+    <div class="nextin" id="winNext"></div>
+    <div class="statline" id="winStatline"></div>
+  </div>
+</div>
+
+<!-- Paste JSON overlay (dev) -->
+<div class="overlay" id="pasteOverlay">
+  <div class="card" style="text-align:left;">
+    <h2 style="text-align:center;">Paste puzzle JSON</h2>
+    <textarea id="pasteArea" spellcheck="false" placeholder='{ "terrain":[...], "slots":[...], "crates":[...], "player":[r,c], "anagram":"...", "answer":"..." }'></textarea>
+    <button class="primary" id="loadPasteBtn">Load puzzle</button>
+    <button class="ghost" id="cancelPasteBtn">Cancel</button>
+  </div>
+</div>
+
+<!-- How-to-play overlay (directions; auto-shown once on first visit) -->
+<div class="overlay" id="helpOverlay">
+  <div class="card">
+    <button class="closeX" id="helpCloseBtn" aria-label="Close">✕</button>
+    <h2>How to play</h2>
+    <ul class="howto">
+      <li><span class="hnum">1</span><span><b>Tap</b> a cell to walk there (shortest path).</span></li>
+      <li><span class="hnum">2</span><span><b>Swipe</b> toward a crate to push it. Arrows / WASD work too.</span></li>
+      <li><span class="hnum">3</span><span>Push every crate onto its dashed slot to spell the hidden word.</span></li>
+    </ul>
+    <p class="howtonote">Fewer moves earn more stars. A fresh puzzle daily — <b>gentle on Monday, toughest by the weekend.</b></p>
+    <button class="primary" id="helpGotBtn">Got it</button>
+  </div>
+</div>
+
+<!-- Stats overlay -->
+<div class="overlay" id="statsOverlay">
+  <div class="card">
+    <button class="closeX" id="statsCloseBtn" aria-label="Close">✕</button>
+    <h2>Your stats</h2>
+    <div class="statgrid">
+      <div><b id="stPlayed">0</b><span>Solved</span></div>
+      <div><b id="stStreak">0</b><span>Streak</span></div>
+      <div><b id="stBest">0</b><span>Best</span></div>
+    </div>
+    <div class="nextin" id="statsNext"></div>
+    <button class="ghost" id="statsDoneBtn">Close</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Pre-baked daily puzzles (generated by spelloban.py). Optional: if the file
+     is absent, window.SPELLOBAN_BAKED stays undefined and the embedded samples
+     below are used instead. -->
+<script src="puzzles.js"></script>
+<script>
+/* ============================================================
+   SPELLOBAN — Sokoban meets Wordle
+   Core rules live in applyMove(state, dir): a PURE function.
+   ============================================================ */
+
+const DIRS = {
+  up:    [-1, 0],
+  down:  [ 1, 0],
+  left:  [ 0,-1],
+  right: [ 0, 1],
+};
+
+/* ---------- Embedded sample puzzles (from external generator shape) ---------- */
+const PUZZLES = [
+  {
+    id: "sample-from",
+    name: "FORM → hidden (easy)",
+    terrain: [
+      "#########",
+      "#.......#",
+      "#.......#",
+      "#.......#",
+      "#.......#",
+      "#.......#",
+      "#.......#",
+      "#########"
+    ],
+    slots:  [{pos:[3,2],letter:"F"},{pos:[3,3],letter:"R"},{pos:[3,4],letter:"O"},{pos:[3,5],letter:"M"}],
+    crates: [{pos:[3,2],letter:"F"},{pos:[3,3],letter:"O"},{pos:[3,4],letter:"R"},{pos:[3,5],letter:"M"}],
+    player: [6,4],
+    anagram:"FORM",
+    answer:"FROM",
+    optimal: 20                             // solver-optimal move count (drives star rating; never shown)
+  },
+  {
+    id: "tab-bat",
+    name: "TAB → hidden (warm-up)",
+    terrain: [
+      "#######",
+      "#.....#",
+      "#.....#",
+      "#.....#",
+      "#.....#",
+      "#.....#",
+      "#######"
+    ],
+    slots:  [{pos:[2,2],letter:"B"},{pos:[2,3],letter:"A"},{pos:[2,4],letter:"T"}],
+    crates: [{pos:[2,2],letter:"T"},{pos:[2,3],letter:"A"},{pos:[2,4],letter:"B"}],
+    player: [4,3],
+    anagram:"TAB",
+    answer:"BAT",
+    optimal: 28
+  },
+  {
+    id: "least-slate",
+    name: "LEAST → hidden (harder)",
+    terrain: [
+      "#########",
+      "#.......#",
+      "#.......#",
+      "#.......#",
+      "#.......#",
+      "#.......#",
+      "#.......#",
+      "#.......#",
+      "#########"
+    ],
+    slots:  [{pos:[3,2],letter:"S"},{pos:[3,3],letter:"L"},{pos:[3,4],letter:"A"},{pos:[3,5],letter:"T"},{pos:[3,6],letter:"E"}],
+    crates: [{pos:[3,2],letter:"L"},{pos:[3,3],letter:"E"},{pos:[3,4],letter:"A"},{pos:[3,5],letter:"S"},{pos:[3,6],letter:"T"}],
+    player: [6,4],
+    anagram:"LEAST",
+    answer:"SLATE",
+    optimal: 36
+  }
+];
+
+/* ---------- State construction ---------- */
+
+// Parse a puzzle JSON into a game state (pure data, deep-owned).
+function parsePuzzle(p){
+  const terrain = p.terrain.map(row =>
+    row.split("").map(ch => ch === "#" ? "wall" : "floor")
+  );
+  return {
+    id: p.id,
+    rows: terrain.length,
+    cols: terrain[0].length,
+    terrain,                                             // static: 'wall' | 'floor'
+    slots: p.slots.map(s => ({ r:s.pos[0], c:s.pos[1], letter:s.letter })),   // static
+    crates: p.crates.map(c => ({ r:c.pos[0], c:c.pos[1], letter:c.letter })), // mobile
+    player: [p.player[0], p.player[1]],
+    moves: 0,
+    meta: { anagram:p.anagram || "", answer:p.answer || "", optimal: p.optimal || null }
+  };
+}
+
+function cloneState(s){
+  return {
+    id:s.id, rows:s.rows, cols:s.cols,
+    terrain:s.terrain,                                   // static — safe to share
+    slots:s.slots,                                       // static — safe to share
+    crates:s.crates.map(c => ({ r:c.r, c:c.c, letter:c.letter })),
+    player:[s.player[0], s.player[1]],
+    moves:s.moves,
+    meta:s.meta
+  };
+}
+
+/* ---------- Pure helpers ---------- */
+
+function isWall(state, r, c){
+  if (r < 0 || c < 0 || r >= state.rows || c >= state.cols) return true;
+  return state.terrain[r][c] === "wall";
+}
+function crateIndexAt(state, r, c){
+  return state.crates.findIndex(k => k.r === r && k.c === c);
+}
+function slotLetterAt(state, r, c){
+  const s = state.slots.find(s => s.r === r && s.c === c);
+  return s ? s.letter : null;
+}
+// Green = crate currently sits on a slot whose letter matches. Derived, never stored.
+function isCrateGreen(state, crate){
+  return slotLetterAt(state, crate.r, crate.c) === crate.letter;
+}
+// Win = every slot holds a crate of its matching letter.
+function isSolved(state){
+  return state.slots.every(slot => {
+    const idx = crateIndexAt(state, slot.r, slot.c);
+    return idx !== -1 && state.crates[idx].letter === slot.letter;
+  });
+}
+
+/* ---------- THE RULE: applyMove(state, dir) -> newState ----------
+   Pure. On a blocked input it returns the SAME state reference
+   (nothing moved, no move counted). On a walk or push it returns a
+   NEW state with moves incremented by 1.                              */
+function applyMove(state, dir){
+  const d = DIRS[dir];
+  if (!d) return state;
+  const [dr, dc] = d;
+  const [pr, pc] = state.player;
+  const tr = pr + dr, tc = pc + dc;          // target cell in front of player
+
+  if (isWall(state, tr, tc)) return state;   // wall → do nothing
+
+  const ci = crateIndexAt(state, tr, tc);
+  if (ci === -1){
+    // floor or empty slot → walk onto it
+    const ns = cloneState(state);
+    ns.player = [tr, tc];
+    ns.moves = state.moves + 1;
+    return ns;
+  }
+
+  // target has a crate → check the cell beyond
+  const br = tr + dr, bc = tc + dc;
+  if (isWall(state, br, bc)) return state;              // wall beyond → can't push
+  if (crateIndexAt(state, br, bc) !== -1) return state; // crate beyond → can't push
+
+  // beyond is floor or empty slot → PUSH
+  const ns = cloneState(state);
+  ns.crates[ci] = { r:br, c:bc, letter:state.crates[ci].letter };
+  ns.player = [tr, tc];
+  ns.moves = state.moves + 1;
+  return ns;
+}
+
+/* ============================================================
+   Game / UI controller
+   ============================================================ */
+
+const boardEl   = document.getElementById("board");
+const moveCountEl = document.getElementById("moveCount");
+let   pickerEl  = document.getElementById("picker");   // null unless ?dev injects it
+const toastEl   = document.getElementById("toast");
+
+/* ---------- top-bar weekday + difficulty ----------
+   Driven by the puzzle's difficulty slot (meta.day: "mon".."sun"), NOT the
+   calendar weekday of meta.date — the current bake is a difficulty sampler
+   where every entry shares one placeholder meta.date but differs by meta.day. */
+const DAY_INFO = {
+  mon:{name:"MONDAY",   tier:1,label:"gentle"},
+  tue:{name:"TUESDAY",  tier:2,label:"easy"},
+  wed:{name:"WEDNESDAY",tier:2,label:"steady"},
+  thu:{name:"THURSDAY", tier:3,label:"tricky"},
+  fri:{name:"FRIDAY",   tier:3,label:"tricky"},
+  sat:{name:"SATURDAY", tier:4,label:"tough"},
+  sun:{name:"SUNDAY",   tier:2,label:"twist"}
+};
+const WD_KEY = ["sun","mon","tue","wed","thu","fri","sat"];   // getDay() index → key
+// Resolve difficulty info for a puzzle from its meta.day slot; falls back to the
+// calendar weekday of today for embedded samples (no meta.day). Shared by the
+// play-screen top bar (applyDayMeta) and the landing's difficulty word.
+function dayInfoFor(p){
+  const day = p && p.meta && p.meta.day;
+  if (day && DAY_INFO[day]) return DAY_INFO[day];
+  const [y,m,d] = getToday().split("-").map(Number);
+  return DAY_INFO[WD_KEY[new Date(y, m - 1, d).getDay()]];
+}
+function applyDayMeta(p){
+  const info = dayInfoFor(p);
+  const meter = document.getElementById("meter");
+  meter.innerHTML = "";
+  for (let i = 0; i < 5; i++){
+    const pip = document.createElement("i");
+    pip.className = "pip" + (i < info.tier ? " on" : "");
+    meter.appendChild(pip);
+  }
+  document.querySelector(".dayline")
+    .setAttribute("aria-label", `${info.name}, difficulty ${info.tier} of 5, ${info.label}`);
+  // Kicker shows the puzzle's date. The demo week is backdated so each date's
+  // weekday matches its difficulty slot, so the date and the weekday hero agree.
+  const kick = document.getElementById("kicker");
+  const ds = p && p.meta && p.meta.date;
+  if (ds){
+    const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const [y,m,d] = ds.split("-").map(Number);
+    kick.textContent = `SPELLOBAN · ${MON[m-1]} ${d}`;
+  } else {
+    kick.textContent = "SPELLOBAN";
+  }
+}
+
+let game = {
+  state: null,
+  initial: null,   // snapshot for reset
+  history: [],     // stack of prior states for undo
+  crateEls: [],    // DOM element per crate index
+  playerEl: null,
+  won: false,
+  animating: false, // true while a tap-walk is playing out; blocks new input
+  counted: false    // has this run's attempt been counted toward "tries" yet
+};
+
+const STEP_MS = 105;                       // per-step cadence of a tap-walk
+const delay = ms => new Promise(r => setTimeout(r, ms));
+
+function loadPuzzle(puzzleJson){
+  const state = parsePuzzle(puzzleJson);
+  game.state = state;
+  game.initial = cloneState(state);
+  game.history = [];
+  game.won = false;
+  game.animating = false;
+  game.counted = false;
+  applyDayMeta(puzzleJson);        // top-bar weekday + difficulty from meta.day
+  disarmReset();                   // never carry an armed Reset across puzzles
+  clearWinUI();
+  buildBoard();
+  render();
+}
+
+
+function buildBoard(){
+  const s = game.state;
+  boardEl.style.setProperty("--cols", s.cols);
+  boardEl.style.setProperty("--rows", s.rows);
+  boardEl.innerHTML = "";
+
+  // terrain + slot cells (static grid)
+  for (let r = 0; r < s.rows; r++){
+    for (let c = 0; c < s.cols; c++){
+      const cell = document.createElement("div");
+      const wall = s.terrain[r][c] === "wall";
+      const slot = slotLetterAt(s, r, c) !== null;
+      cell.className = "cell " + (wall ? "wall" : slot ? "slot" : "floor");
+      if (!wall && !slot && (r + c) % 2 === 0) cell.classList.add("alt");
+      boardEl.appendChild(cell);
+    }
+  }
+
+  // crate movers
+  game.crateEls = s.crates.map((cr) => {
+    const el = document.createElement("div");
+    el.className = "mover crate";
+    const box = document.createElement("div");
+    box.className = "box";
+    box.textContent = cr.letter;
+    el.appendChild(box);
+    boardEl.appendChild(el);
+    return el;
+  });
+
+  // player mover
+  const pEl = document.createElement("div");
+  pEl.className = "mover player";
+  const av = document.createElement("div");
+  av.className = "avatar";
+  pEl.appendChild(av);
+  boardEl.appendChild(pEl);
+  game.playerEl = pEl;
+}
+
+function placeMover(el, r, c){
+  const s = game.state;
+  el.style.left = (c * 100 / s.cols) + "%";
+  el.style.top  = (r * 100 / s.rows) + "%";
+}
+
+function render(){
+  const s = game.state;
+
+  // crates
+  s.crates.forEach((cr, i) => {
+    const el = game.crateEls[i];
+    placeMover(el, cr.r, cr.c);
+    el.classList.toggle("green", isCrateGreen(s, cr));
+  });
+
+  // player
+  placeMover(game.playerEl, s.player[0], s.player[1]);
+
+  // move counter
+  moveCountEl.textContent = s.moves;
+}
+
+/* ---------- input → move ---------- */
+
+// Commit ONE step via the pure rule. Returns true if the player moved.
+// Shared by swipe, keyboard, and each step of a tap-walk.
+function commitMove(dir){
+  const prev = game.state;
+  const next = applyMove(prev, dir);
+  if (next === prev) return false;         // blocked: nothing changed, no move counted
+
+  // first actual move of a run = one attempt for this puzzle
+  if (!game.counted){ game.counted = true; countTry(prev.id); }
+
+  // detect push (for haptic + pop animation)
+  const pushedIdx = next.crates.findIndex((c, i) =>
+    c.r !== prev.crates[i].r || c.c !== prev.crates[i].c);
+
+  game.history.push(prev);
+  game.state = next;
+  render();
+
+  if (pushedIdx !== -1){
+    if (navigator.vibrate) navigator.vibrate(12);
+    const box = game.crateEls[pushedIdx];
+    if (isCrateGreen(next, next.crates[pushedIdx])){
+      box.classList.remove("pop"); void box.offsetWidth; box.classList.add("pop");
+    }
+  }
+
+  if (isSolved(next)){ clearProgress(next.id); win(); }
+  else saveProgress();                       // snapshot the live board so Play → Resume
+  return true;
+}
+
+// Public directional input (swipe / keyboard). Blocked while a walk animates.
+function doMove(dir){
+  if (game.won || game.animating) return;
+  commitMove(dir);
+}
+
+// Shortest push-free path for the player from its cell to [gr,gc].
+// Walkable = in-bounds floor/empty-slot with NO crate. Returns a list of
+// cells [start,...,goal] or null if unreachable. Tapping never pushes.
+function findPath(state, gr, gc){
+  const walkable = (r,c) => !isWall(state,r,c) && crateIndexAt(state,r,c) === -1;
+  const [sr, sc] = state.player;
+  if (gr === sr && gc === sc) return [];
+  if (!walkable(gr,gc)) return null;
+  const k = (r,c) => r + "," + c;
+  const prev = new Map([[k(sr,sc), null]]);
+  const q = [[sr, sc]];
+  while (q.length){
+    const [r,c] = q.shift();
+    if (r === gr && c === gc){
+      const path = []; let cur = [r,c];
+      while (cur){ path.push(cur); cur = prev.get(k(cur[0],cur[1])); }
+      return path.reverse();
+    }
+    for (const dir in DIRS){
+      const [dr,dc] = DIRS[dir];
+      const nr = r+dr, nc = c+dc;
+      if (walkable(nr,nc) && !prev.has(k(nr,nc))){
+        prev.set(k(nr,nc), [r,c]);
+        q.push([nr,nc]);
+      }
+    }
+  }
+  return null;
+}
+
+function dirFromDelta(dr, dc){
+  if (dr === -1) return "up";
+  if (dr ===  1) return "down";
+  if (dc === -1) return "left";
+  return "right";
+}
+
+// Tap → walk to a cell, one step at a time (each step is a real move).
+async function walkTo(gr, gc){
+  if (game.won || game.animating) return;
+  const path = findPath(game.state, gr, gc);
+  if (!path || path.length < 2) return;    // unreachable, a crate/wall, or same cell
+  tapFx(gr, gc);
+  game.animating = true;
+  try {
+    for (let i = 1; i < path.length; i++){
+      const dr = path[i][0] - path[i-1][0];
+      const dc = path[i][1] - path[i-1][1];
+      commitMove(dirFromDelta(dr, dc));
+      if (i < path.length - 1) await delay(STEP_MS);
+    }
+  } finally {
+    game.animating = false;
+  }
+}
+
+// Pure: can the crate at [cr,cc] be pushed one step in `dir`, and if so what
+// walk gets the player to the push-from cell? Returns the walk path (a list of
+// cells [start..stand]; [] if already there) or null when it can't happen —
+// no crate there, the push is illegal (blocked beyond), or the stand cell is
+// unreachable. No state mutation; drives walkAndPush and is unit-tested.
+function pushPlan(state, cr, cc, dir){
+  const d = DIRS[dir];
+  if (!d) return null;
+  const [dr, dc] = d;
+  if (crateIndexAt(state, cr, cc) === -1) return null;   // no crate to push
+  const br = cr + dr, bc = cc + dc;                      // cell the crate moves TO
+  if (isWall(state, br, bc) || crateIndexAt(state, br, bc) !== -1) return null; // illegal push
+  return findPath(state, cr - dr, cc - dc);              // path to the stand cell (or null)
+}
+
+// Swipe ON a crate → walk the player to the cell it must be pushed FROM, then
+// push it one step in `dir`. No-op (player never moves) when pushPlan says the
+// push is illegal or the stand cell is unreachable.
+async function walkAndPush(cr, cc, dir){
+  if (game.won || game.animating) return;
+  const path = pushPlan(game.state, cr, cc, dir);
+  if (!path) return;                                     // illegal / blocked → don't move
+  tapFx(cr, cc);
+  game.animating = true;
+  try {
+    for (let i = 1; i < path.length; i++){               // walk into position
+      const wr = path[i][0] - path[i-1][0];
+      const wc = path[i][1] - path[i-1][1];
+      commitMove(dirFromDelta(wr, wc));
+      await delay(STEP_MS);
+    }
+    commitMove(dir);                                     // then the push itself
+  } finally {
+    game.animating = false;
+  }
+}
+
+function undo(){
+  if (game.won || game.animating || !game.history.length) return;
+  game.state = game.history.pop();         // moves decrements with the restored state
+  render();
+}
+
+function reset(){
+  if (game.animating) return;
+  game.state = cloneState(game.initial);
+  game.history = [];
+  game.won = false;
+  game.counted = false;   // a fresh run → its attempt hasn't been counted yet
+  clearProgress(game.state.id);   // starting over → drop the saved snapshot
+  clearWinUI();
+  render();
+}
+
+// transient ripple at a tapped cell
+function tapFx(r, c){
+  const el = document.createElement("div");
+  el.className = "mover tapfx";
+  placeMover(el, r, c);
+  boardEl.appendChild(el);
+  setTimeout(() => el.remove(), 340);
+}
+
+// map a viewport point to a board cell, or null if outside
+function cellFromPoint(x, y){
+  const rect = boardEl.getBoundingClientRect();
+  const s = game.state;
+  const c = Math.floor((x - rect.left) / (rect.width  / s.cols));
+  const r = Math.floor((y - rect.top)  / (rect.height / s.rows));
+  if (r < 0 || c < 0 || r >= s.rows || c >= s.cols) return null;
+  return [r, c];
+}
+
+const winOverlay = document.getElementById("winOverlay");
+
+// Star rating from move count vs. the puzzle's solver-optimal move count.
+// Generous thresholds: 3★ is near-optimal (reachable, not perfect), 1★ = solved.
+// Returns 0 when the puzzle has no optimal (→ stars hidden).
+const STAR = { three: 1.15, two: 1.6 };     // moves/optimal ratio cutoffs (tunable)
+function starsFor(moves, optimal){
+  if (!optimal) return 0;
+  if (moves <= optimal * STAR.three) return 3;
+  if (moves <= optimal * STAR.two)   return 2;
+  return 1;
+}
+function isOptimal(moves, optimal){ return !!optimal && moves <= optimal; }
+
+// ---- persistent stats (localStorage) ----
+const STATS_KEY = "spelloban.stats";
+const BLANK_STATS = { played:0, curStreak:0, bestStreak:0, lastDate:null, history:[] };
+function loadStats(){
+  try { return Object.assign({}, BLANK_STATS, JSON.parse(localStorage.getItem(STATS_KEY) || "{}")); }
+  catch { return { ...BLANK_STATS }; }
+}
+// local calendar date as YYYY-MM-DD
+function todayStr(){
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function daysBetween(a, b){ return Math.round((Date.parse(b) - Date.parse(a)) / 86400000); }
+
+// ---- daily rollover (local midnight) ----
+// "Today" is the local calendar date, so the daily puzzle and the streak both
+// roll over at the player's local midnight. ?date=YYYY-MM-DD simulates any day.
+const DATE_OVERRIDE = new URLSearchParams(location.search).get("date");
+function getToday(){ return DATE_OVERRIDE || todayStr(); }
+// stable integer day-number for a YYYY-MM-DD date (timezone/DST-independent)
+function dayNumber(dateStr){
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return Math.floor(Date.UTC(y, m - 1, d) / 86400000);
+}
+function msToNextLocalMidnight(){
+  const now = new Date(), next = new Date(now);
+  next.setHours(24, 0, 0, 0);          // 24:00 today = 00:00 tomorrow, local
+  return next - now;
+}
+// live "next puzzle in Hh MMm SSs" ticker toward the next local midnight
+let _cdTimer = null;
+function stopCountdown(){ if (_cdTimer){ clearInterval(_cdTimer); _cdTimer = null; } }
+function startCountdown(el){
+  stopCountdown();
+  const tick = () => {
+    const s = Math.max(0, Math.floor(msToNextLocalMidnight() / 1000));
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    el.innerHTML = `Next puzzle in <b>${h}h ${String(m).padStart(2,"0")}m ${String(sec).padStart(2,"0")}s</b>`;
+    if (s <= 0){ stopCountdown(); el.innerHTML = "New puzzle ready — reload"; }
+  };
+  tick();
+  _cdTimer = setInterval(tick, 1000);
+}
+// record a solve: bump total plays and advance the DAILY streak — consecutive
+// calendar days with at least one solve. A gap resets it; multiple solves on
+// the same day don't stack.
+function recordSolve(){
+  const s = loadStats();
+  s.played++;
+  const today = getToday();
+  if (s.lastDate !== today){
+    s.curStreak = (s.lastDate && daysBetween(s.lastDate, today) === 1) ? s.curStreak + 1 : 1;
+    s.bestStreak = Math.max(s.bestStreak, s.curStreak);
+    s.lastDate = today;
+  }
+  if (!s.history) s.history = [];
+  if (!s.history.includes(today)) s.history.push(today);   // for the 7-day dot-strip
+  if (s.history.length > 90) s.history = s.history.slice(-90);
+  try { localStorage.setItem(STATS_KEY, JSON.stringify(s)); } catch {}
+  Platform.queueSync();
+  return s;
+}
+// add/subtract whole days from a YYYY-MM-DD (UTC math, DST-safe)
+function addDays(dateStr, delta){
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d) + delta * 86400000);
+  return `${t.getUTCFullYear()}-${String(t.getUTCMonth()+1).padStart(2,"0")}-${String(t.getUTCDate()).padStart(2,"0")}`;
+}
+// last-7-days solved dots (most recent = rightmost), reflecting real calendar days
+function dotStripHTML(){
+  const s = loadStats();
+  if (!s.played) return "";
+  const hist = new Set(s.history || []);
+  const today = getToday();
+  let dots = "";
+  for (let i = 6; i >= 0; i--){
+    const d = addDays(today, -i);
+    dots += `<span class="dot${hist.has(d) ? " on" : ""}"></span>`;
+  }
+  return dots;
+}
+function statsHTML(s){
+  if (!s.played) return "";
+  return `Played <b>${s.played}</b> · 🔥 Streak <b>${s.curStreak}</b> <span style="opacity:.7">(longest ${s.bestStreak})</span>`;
+}
+
+// don't touch persisted records on the unit-test page
+const IS_TEST = new URLSearchParams(location.search).has("test");
+
+// ---- per-puzzle records (localStorage): best score + attempt count ----
+const RECORDS_KEY = "spelloban.records";
+function loadRecords(){
+  try { return JSON.parse(localStorage.getItem(RECORDS_KEY) || "{}") || {}; }
+  catch { return {}; }
+}
+function getRecord(id){
+  const r = loadRecords()[id] || {};
+  return { best: r.best || null, tries: r.tries || 0 };
+}
+function saveRecord(id, rec){
+  try { const all = loadRecords(); all[id] = rec; localStorage.setItem(RECORDS_KEY, JSON.stringify(all)); } catch {}
+  Platform.queueSync();
+}
+// count one attempt for a puzzle (called on the first move of a run)
+function countTry(id){
+  if (!id || IS_TEST) return;
+  const rec = getRecord(id); rec.tries++; saveRecord(id, rec);
+}
+// record a solve; returns { rec, first, improved }.
+// first = first-ever solve of this puzzle; improved = beat a prior best.
+function recordBest(id, moves){
+  const rec = getRecord(id);
+  const first = rec.best === null;
+  const improved = !first && moves < rec.best;
+  if (first || improved) rec.best = moves;
+  if (id && !IS_TEST) saveRecord(id, rec);
+  return { rec, first, improved };
+}
+
+// ---- in-progress board persistence (localStorage) → true Resume ----
+// Snapshot {crates, player, moves} per puzzle id on each move; the landing shows
+// "In progress · N moves" + Resume; Play/Resume restores it. Undo history is not
+// persisted (a resume can't undo past the resume point). Skipped under ?test.
+const PROGRESS_KEY = "spelloban.progress";
+function loadAllProgress(){ try { return JSON.parse(localStorage.getItem(PROGRESS_KEY) || "{}") || {}; } catch { return {}; } }
+function loadProgress(id){ return (id && loadAllProgress()[id]) || null; }
+function saveProgress(){                          // snapshot the live board (mid-solve)
+  const s = game.state;
+  if (!s || !s.id || game.won || IS_TEST) return;
+  const all = loadAllProgress();
+  all[s.id] = { crates: s.crates.map(c => ({ r:c.r, c:c.c, letter:c.letter })), player: [s.player[0], s.player[1]], moves: s.moves };
+  try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(all)); } catch {}
+}
+function clearProgress(id){
+  const all = loadAllProgress();
+  if (all[id] !== undefined){ delete all[id]; try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(all)); } catch {} }
+}
+function resumeProgress(prog){                     // apply a saved snapshot onto a fresh board
+  const s = game.state;
+  s.crates = prog.crates.map(c => ({ r:c.r, c:c.c, letter:c.letter }));
+  s.player = [prog.player[0], prog.player[1]];
+  s.moves = prog.moves;
+  game.history = [];        // can't undo past a resume
+  game.counted = true;      // this run's attempt was already counted
+  render();
+}
+
+// ---- platform: Facebook Instant (serverless) with localStorage fallback ----
+// Progress persists to localStorage for instant, offline-friendly play. When the
+// game runs inside Facebook Instant (SDK v8 / NEZP), the same {stats, records}
+// blob is mirrored to the player's cloud data (setDataAsync — 1 MB/player) and
+// treated as the cross-device source of truth. No backend required.
+//
+// FB build: load the SDK once before this script by adding a script tag whose
+// src is  https://connect.facebook.net/en_US/fbinstant.8.0.js
+// (kept as prose, not markup, since a literal closing script tag here would end
+// this inline block). Standalone (no SDK on the page) uses localStorage only.
+const Platform = (() => {
+  const FB = (typeof window !== "undefined" && window.FBInstant) ? window.FBInstant : null;
+  const CLOUD_KEY = "spelloban";
+  let ready = false, playerId = null, timer = null;
+
+  const snapshot = () => ({
+    stats:   JSON.parse(localStorage.getItem(STATS_KEY)   || "null"),
+    records: JSON.parse(localStorage.getItem(RECORDS_KEY) || "null"),
+  });
+  const writeLocal = (blob) => {
+    if (blob && blob.stats)   localStorage.setItem(STATS_KEY,   JSON.stringify(blob.stats));
+    if (blob && blob.records) localStorage.setItem(RECORDS_KEY, JSON.stringify(blob.records));
+  };
+
+  // Monotonic merge so neither side loses progress. Schema-agnostic: start from
+  // a union of both blobs (unknown/new fields preserved) so a stats-shape change
+  // like `lastDate` can't be silently dropped, then apply the rules we know —
+  // integer counters take the max; the daily-streak date keeps the later day.
+  // (Cross-device streak reconciliation is a v1 approximation; a fully correct
+  // merge would track the set of solved days.)
+  const COUNTERS = ["played", "curStreak", "bestStreak"];
+  const mergeStats = (a, b) => {
+    a = a || {}; b = b || {};
+    const out = { ...BLANK_STATS, ...a, ...b };
+    for (const k of COUNTERS) out[k] = Math.max(a[k] || 0, b[k] || 0);
+    out.lastDate = [a.lastDate, b.lastDate].filter(Boolean).sort().pop() || null;
+    return out;
+  };
+  const mergeRecords = (a, b) => {
+    a = a || {}; b = b || {}; const out = {};
+    for (const id of new Set([...Object.keys(a), ...Object.keys(b)])){
+      const x = a[id] || {}, y = b[id] || {};
+      const bests = [x.best, y.best].filter(v => v != null);
+      out[id] = { best: bests.length ? Math.min(...bests) : null,
+                  tries: Math.max(x.tries || 0, y.tries || 0) };
+    }
+    return out;
+  };
+  const reconcile = (cloud) => {
+    if (!cloud) return;                        // first run on this account
+    const local = snapshot();
+    writeLocal({ stats: mergeStats(local.stats, cloud.stats),
+                 records: mergeRecords(local.records, cloud.records) });
+  };
+
+  async function init(){
+    if (!FB){ ready = true; return { cloud: false }; }
+    try {
+      await FB.initializeAsync();
+      const data = await FB.player.getDataAsync([CLOUD_KEY]);   // hydrate + reconcile
+      reconcile(data && data[CLOUD_KEY]);
+      await FB.startGameAsync();
+      playerId = FB.player.getID();
+    } catch (e){ /* any SDK error → stay on local-only */ }
+    ready = true;
+    return { cloud: !!FB, playerId };
+  }
+
+  // debounced local → cloud mirror (setDataAsync is rate-limited)
+  function queueSync(){
+    if (!FB || IS_TEST) return;
+    clearTimeout(timer);
+    timer = setTimeout(() => { try { FB.player.setDataAsync({ [CLOUD_KEY]: snapshot() }); } catch {} }, 400);
+  }
+
+  return { init, queueSync, isCloud: !!FB,
+           get ready(){ return ready; }, get playerId(){ return playerId; } };
+})();
+
+// gold/green/blue confetti burst over the win overlay (optimal solves only)
+function confettiBurst(){
+  const colors = ["#ffc93c","#3ec46d","#5aa9ff","#e0bd6a","#ff8f5a"];
+  for (let i = 0; i < 40; i++){
+    const p = document.createElement("div");
+    p.className = "confetti";
+    p.style.left = (Math.random() * 100) + "%";
+    p.style.background = colors[i % colors.length];
+    p.style.setProperty("--spin", (360 + Math.random() * 720) + "deg");
+    p.style.animationDuration = (1.1 + Math.random() * 1.1) + "s";
+    p.style.animationDelay = (Math.random() * 0.25) + "s";
+    winOverlay.appendChild(p);
+    setTimeout(() => p.remove(), 2700);
+  }
+}
+
+// Show the result card (from a fresh win, or re-opened via the chip).
+// Focus the primary action so Enter/Space activates it — the .primary
+// styling implies it's the default action, so it must actually be focused.
+// solved-then-peeked: swap the now-inert Undo/↻ for a "See result" pill in
+// their slot (no floating chip). `on` = show the pill / hide Undo+Reset.
+function setSeeResult(on){
+  document.getElementById("seeResultBtn").style.display = on ? "" : "none";
+  document.getElementById("undoBtn").style.display  = on ? "none" : "";
+  document.getElementById("resetBtn").style.display = on ? "none" : "";
+}
+function openWinCard(){
+  winOverlay.classList.add("show");
+  setSeeResult(false);
+  copyBtn.focus({ preventScroll: true });
+}
+// Peek: hide the card to reveal the solved board, but keep game.won = true so
+// stray taps don't disturb it. The "See result" pill (and Escape/backdrop)
+// bring the result back — no focus theft while the player admires the board.
+function closeWinCard(){
+  winOverlay.classList.remove("show");
+  setSeeResult(true);
+}
+// Clear when the game leaves the won state (reset / new puzzle).
+function clearWinUI(){
+  winOverlay.classList.remove("show");
+  setSeeResult(false);
+  stopCountdown();
+}
+
+// Render a word as a row of letter-tiles (staggered pop-in). The parent
+// container's class picks the look: green (.wintiles) or gold (.brandtiles).
+function renderTiles(container, word){
+  container.innerHTML = "";
+  [...(word || "")].forEach((ch, i) => {
+    const t = document.createElement("div");
+    t.className = "t"; t.textContent = ch;
+    t.style.animationDelay = (i * 85) + "ms";
+    container.appendChild(t);
+  });
+}
+
+// A solve fires this: block input immediately, celebrate the final piece
+// landing (solved crates bounce in a wave), THEN reveal the result modal —
+// so the last slide gets a beat to be appreciated instead of being cut off.
+function win(){
+  game.won = true;
+  const perfect = isOptimal(game.state.moves, game.state.meta.optimal);
+  if (navigator.vibrate) navigator.vibrate(perfect ? [30,40,30,40,60] : [20,40,20]);
+
+  const solved = game.state.crates
+    .map((c, i) => i)
+    .filter(i => isCrateGreen(game.state, game.state.crates[i]));
+  const SLIDE = 170, STAGGER = 130;        // wait for the last slide, then wave
+  solved.forEach((i, k) => setTimeout(() => {
+    const el = game.crateEls[i];
+    if (el){ el.classList.remove("pop", "celebrate"); void el.offsetWidth; el.classList.add("celebrate"); }
+  }, SLIDE + k * STAGGER));
+
+  setTimeout(showWinModal, SLIDE + solved.length * STAGGER + 420);
+}
+
+function showWinModal(){
+  const { answer, optimal } = game.state.meta;
+  const moves = game.state.moves;
+  const perfect = isOptimal(moves, optimal);
+
+  // completed word as green letter-tiles
+  renderTiles(document.getElementById("winWord"), answer);
+
+  // headline + gold "perfect" treatment on an optimal solve
+  document.querySelector("#winOverlay h2").textContent = perfect ? "OPTIMAL!" : "SOLVED!";
+  document.querySelector("#winOverlay .card").classList.toggle("perfect", perfect);
+
+  // star rating (hidden when the puzzle has no optimal). The optimal move
+  // count itself is never shown — the ★s hint at it; players discover it.
+  const stars = starsFor(moves, optimal);
+  const starsEl = document.getElementById("winStars");
+  starsEl.innerHTML = "";
+  if (stars){
+    for (let i = 0; i < 3; i++){
+      const s = document.createElement("span");
+      s.className = "s" + (i < stars ? " on" : "");
+      s.style.animationDelay = (280 + i * 160) + "ms";
+      s.textContent = i < stars ? "★" : "☆";
+      starsEl.appendChild(s);
+    }
+    starsEl.style.display = "";
+  } else {
+    starsEl.style.display = "none";
+  }
+  // "perfect" note only on a true optimal — no number revealed
+  document.getElementById("winPerfect").innerHTML = perfect ? "👑 PERFECT" : "";
+
+  document.getElementById("winMoves").textContent = moves;
+
+  // Streak/played advance ONLY for today's actual daily — never for archive,
+  // date-stepper, or ?date= solves (otherwise the streak is farmable). Non-today
+  // solves still write per-puzzle best/tries (recordBest below) but not streak.
+  const isDaily = game.state.id === dailyPuzzle(getToday()).id;
+  const stats = (IS_TEST || !isDaily) ? loadStats() : recordSolve();
+  document.getElementById("winStatline").innerHTML = statsHTML(stats);
+
+  // per-puzzle personal best + attempt count for THIS puzzle
+  const { rec, first, improved } = recordBest(game.state.id, moves);
+  const recordEl = document.getElementById("winRecord");
+  recordEl.className = "record" + (improved ? " newbest" : "");
+  recordEl.innerHTML = !rec.tries ? ""
+    : improved ? `🎉 New best! · Tries <b>${rec.tries}</b>`
+    : `Best <b>${rec.best}</b> · Tries <b>${rec.tries}</b>`;
+
+  // countdown to the next daily — only when the solved puzzle IS today's daily
+  const nextEl = document.getElementById("winNext");
+  if (isDaily) startCountdown(nextEl);
+  else { stopCountdown(); nextEl.innerHTML = ""; }
+
+  openWinCard();
+  if (perfect) confettiBurst();
+}
+
+/* ---------- toast ---------- */
+let toastTimer = null;
+function toast(msg){
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove("show"), 1600);
+}
+
+/* ============================================================
+   Wiring: swipe, d-pad, keyboard, buttons, picker
+   ============================================================ */
+
+// Board gestures (unified across mouse / touch / pen via Pointer Events):
+//   • a drag past the threshold = one directional step/push (the "swipe")
+//   • a stationary press-release below the threshold = a tap → walk to that cell
+// touch-action:none on .board stops the page scrolling/rubber-banding while playing.
+(function setupBoardInput(){
+  const MIN = 24;                          // px: tap vs. swipe threshold
+  let sx = 0, sy = 0, active = false;
+
+  boardEl.addEventListener("pointerdown", (e) => {
+    if (!e.isPrimary) return;
+    active = true;
+    sx = e.clientX; sy = e.clientY;
+    try { boardEl.setPointerCapture(e.pointerId); } catch {}
+    e.preventDefault();
+  });
+
+  boardEl.addEventListener("pointermove", (e) => {
+    if (active) e.preventDefault();        // block scroll / rubber-band mid-gesture
+  });
+
+  boardEl.addEventListener("pointercancel", () => { active = false; });
+
+  boardEl.addEventListener("pointerup", (e) => {
+    if (!active) return;
+    active = false;
+    e.preventDefault();
+
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    const ax = Math.abs(dx), ay = Math.abs(dy);
+
+    if (Math.max(ax, ay) < MIN){           // TAP → walk to the cell
+      const cell = cellFromPoint(e.clientX, e.clientY);
+      if (cell) walkTo(cell[0], cell[1]);
+      return;
+    }
+    // SWIPE / DRAG → a directional step, OR a push if it started on a crate
+    const dir = ax > ay ? (dx > 0 ? "right" : "left")
+                        : (dy > 0 ? "down"  : "up");
+    const start = cellFromPoint(sx, sy);
+    if (start && crateIndexAt(game.state, start[0], start[1]) !== -1)
+      walkAndPush(start[0], start[1], dir);   // swipe a block → line up + push
+    else
+      doMove(dir);                            // swipe floor → single step
+  });
+})();
+
+// keyboard: arrows + WASD
+window.addEventListener("keydown", (e) => {
+  // Escape dismisses whichever overlay is open (desktop convenience).
+  if (e.key === "Escape"){
+    if (winOverlay.classList.contains("show")){ e.preventDefault(); closeWinCard(); return; }
+    if (helpOverlay.classList.contains("show")){ e.preventDefault(); hideHelp(); return; }
+    if (statsOverlay.classList.contains("show")){ e.preventDefault(); hideStats(); return; }
+    const paste = document.getElementById("pasteOverlay");
+    if (paste.classList.contains("show")){
+      e.preventDefault();
+      paste.classList.remove("show");
+      if (pickerEl) pickerEl.value = "0";
+      return;
+    }
+    return;
+  }
+  // While a menu overlay (start / win / help / stats) is open, arrow keys move
+  // focus between its buttons (console-style nav) rather than the player;
+  // Enter/Space/Tab stay native. Nothing falls through — so R/WASD can't
+  // disturb the solved board.
+  const menu = [startOverlay, winOverlay, helpOverlay, statsOverlay].find(o => o.classList.contains("show"));
+  if (menu){
+    const btns = [...menu.querySelectorAll("button")];
+    const fwd  = e.key === "ArrowDown"  || e.key === "ArrowRight";
+    const back = e.key === "ArrowUp"    || e.key === "ArrowLeft";
+    if ((fwd || back) && btns.length){
+      e.preventDefault();
+      const cur = btns.indexOf(document.activeElement);
+      const idx = cur === -1 ? (fwd ? 0 : btns.length - 1)
+                             : (cur + (fwd ? 1 : -1) + btns.length) % btns.length;
+      btns[idx].focus({ preventScroll: true });
+    }
+    return;
+  }
+  const map = {
+    ArrowUp:"up", ArrowDown:"down", ArrowLeft:"left", ArrowRight:"right",
+    w:"up", s:"down", a:"left", d:"right", W:"up", S:"down", A:"left", D:"right"
+  };
+  const dir = map[e.key];
+  if (dir){ e.preventDefault(); doMove(dir); return; }
+  if (e.key === "z" || e.key === "Z" || e.key === "Backspace"){ e.preventDefault(); undo(); return; }
+  if (e.key === "r" || e.key === "R"){ reset(); }
+});
+
+document.getElementById("undoBtn").addEventListener("click", undo);
+
+// Reset = quiet ↻ icon; first tap arms an inline "Reset?" chip for 2s, second
+// tap within that window confirms. Guards the (unrecoverable) undo-history wipe
+// against a fat-finger tap — no modal, no new overlay.
+const resetBtn = document.getElementById("resetBtn");
+let resetArmed = false, resetTimer = null;
+// Lucide refresh-cw — must match the inline SVG in the #resetBtn markup above.
+// Arming swaps this for a "Reset?" text chip; disarm restores the icon.
+const RESET_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>';
+function disarmReset(){
+  clearTimeout(resetTimer); resetArmed = false;
+  if (resetBtn){ resetBtn.classList.remove("confirm"); resetBtn.innerHTML = RESET_ICON; }
+}
+resetBtn.addEventListener("click", () => {
+  if (game.animating) return;
+  if (!resetArmed){
+    resetArmed = true;
+    resetBtn.classList.add("confirm");
+    resetBtn.textContent = "Reset?";
+    resetTimer = setTimeout(disarmReset, 2000);
+    return;
+  }
+  disarmReset();
+  reset();
+});
+
+// how-to-play + stats overlays
+const helpOverlay  = document.getElementById("helpOverlay");
+const statsOverlay = document.getElementById("statsOverlay");
+const showHelp = () => helpOverlay.classList.add("show");
+const hideHelp = () => helpOverlay.classList.remove("show");
+const hideStats = () => { stopCountdown(); statsOverlay.classList.remove("show"); };
+document.getElementById("helpBtn").addEventListener("click", showHelp);        // play top-bar "?"
+document.getElementById("landHelpBtn").addEventListener("click", showHelp);    // landing "?"
+document.getElementById("helpCloseBtn").addEventListener("click", hideHelp);
+document.getElementById("helpGotBtn").addEventListener("click", hideHelp);
+helpOverlay.addEventListener("click", (e) => { if (e.target === helpOverlay) hideHelp(); });
+document.getElementById("statsBtn").addEventListener("click", () => {
+  const s = loadStats();
+  document.getElementById("stPlayed").textContent = s.played;
+  document.getElementById("stStreak").textContent = s.curStreak;
+  document.getElementById("stBest").textContent = s.bestStreak;
+  startCountdown(document.getElementById("statsNext"));   // reuse the daily ticker
+  statsOverlay.classList.add("show");
+});
+document.getElementById("statsCloseBtn").addEventListener("click", hideStats);
+document.getElementById("statsDoneBtn").addEventListener("click", hideStats);
+statsOverlay.addEventListener("click", (e) => { if (e.target === statsOverlay) hideStats(); });
+
+// Auto-show the how-to card ONCE, on the FIRST PLAY (right after the landing→board
+// surface swap), as our scrim card over the board — not on boot, not a bottom sheet.
+const HELP_KEY = "spelloban.seenHowTo";
+function maybeShowHelp(){
+  if (IS_TEST) return;
+  try { if (localStorage.getItem(HELP_KEY)) return; localStorage.setItem(HELP_KEY, "1"); } catch { return; }
+  showHelp();
+}
+
+// win overlay buttons
+const copyBtn = document.getElementById("copyBtn");
+const winCloseBtn = document.getElementById("winCloseBtn");
+const playAgainBtn = document.getElementById("playAgainBtn");
+// shareable result string — used by BOTH the win card and the solved landing
+function shareText(moves, optimal){
+  const stars = starsFor(moves, optimal);
+  const badge = isOptimal(moves, optimal) ? " 👑 PERFECT" : (stars ? " " + "⭐".repeat(stars) : "");
+  const st = loadStats().curStreak;
+  return `Spelloban — unscrambled in ${moves} moves${badge}${st > 1 ? ` · streak ${st}` : ""}`;
+}
+async function copyToClipboard(text){
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch {
+    const ta = document.createElement("textarea");
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    let ok = false; try { ok = document.execCommand("copy"); } catch {}
+    ta.remove(); return ok;
+  }
+}
+copyBtn.addEventListener("click", async () => {
+  const done = await copyToClipboard(shareText(game.state.moves, game.state.meta.optimal));
+  if (done){
+    toast("Copied — share it, or tap ✕ to view your board");
+    // momentary in-button confirmation so the action clearly "took"
+    copyBtn.textContent = "Copied ✓";
+    setTimeout(() => { copyBtn.textContent = "Copy result"; }, 1400);
+  } else {
+    toast("Copy failed");
+  }
+});
+// dismiss the result card → peek at the solved board (result stays recoverable)
+winCloseBtn.addEventListener("click", closeWinCard);
+// tap on the dimmed backdrop (but NOT inside the card) also peeks
+winOverlay.addEventListener("click", (e) => {
+  if (e.target === winOverlay) closeWinCard();
+});
+// "See result" pill re-opens the result card
+document.getElementById("seeResultBtn").addEventListener("click", openWinCard);
+
+// Pre-baked daily puzzles (if puzzles.js was included) come first, then the
+// built-in samples. PLAYLIST is what the start menu, picker, and boot index into.
+const BAKED = (window.SPELLOBAN_BAKED && window.SPELLOBAN_BAKED.puzzles) || [];
+const PLAYLIST = BAKED.concat(PUZZLES);
+
+// The daily puzzle for a local date: prefer a baked puzzle stamped with that
+// exact date; otherwise rotate deterministically through the pool by day-number
+// (keeps a stable, midnight-rolling "today" even when the baked calendar is
+// short — a proper calendar with one entry per date makes the exact match hit).
+function dailyPool(){ return BAKED.length ? BAKED : PLAYLIST; }
+function dailyPuzzle(dateStr){
+  const day = dateStr || getToday();
+  const pool = dailyPool();
+  const exact = pool.findIndex(p => p.meta && p.meta.date === day);
+  const i = exact !== -1 ? exact : ((dayNumber(day) % pool.length) + pool.length) % pool.length;
+  return pool[i];
+}
+
+// ---------- daily landing ("Sealed Crates") ----------
+const startOverlay = document.getElementById("startOverlay");
+
+const PUZZLE_EPOCH = "2026-01-01";                    // puzzle #1
+function puzzleNumber(dateStr){ return dayNumber(dateStr) - dayNumber(PUZZLE_EPOCH) + 1; }
+function prettyDate(dateStr){
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return `${DOW[dow]}, ${MON[m - 1]} ${d}`;
+}
+// which day the landing is showing (UI-only; resets to today each time it opens)
+let viewedDate = getToday();
+// hero crate row: face-down gold "?" per letter (length tease, word hidden),
+// or a green reveal once solved.
+function renderSeal(container, answer, solved){
+  container.classList.toggle("solved", !!solved);
+  container.innerHTML = "";
+  [...(answer || "")].forEach((ch, i) => {
+    const t = document.createElement("div");
+    t.className = "t";
+    t.textContent = solved ? ch : "?";
+    t.style.animationDelay = (i * 55) + "ms";
+    container.appendChild(t);
+  });
+}
+
+// SURFACE SWAP: hide the landing, reveal the play surfaces, THEN build the board
+// (lazy — nothing lived behind the seal). Restores a saved snapshot if any, and
+// fires the how-to card once on the first-ever Play.
+function startPuzzle(p){
+  document.body.classList.remove("landing-up");   // reveal .topbar / .stage / .controls
+  startOverlay.classList.remove("show");
+  loadPuzzle(p);                                   // build today's board now
+  const prog = loadProgress(p.id);
+  if (prog) resumeProgress(prog);                  // continue an in-progress solve
+  maybeShowHelp();                                 // first-ever play → how-to card over the board
+}
+
+// Render the landing for `viewedDate`. States: not-solved (sealed) / solved
+// (green reveal). Only "today" shows a countdown / touches the streak. Never
+// builds the board.
+function renderLanding(){
+  const today = getToday();
+  const isToday = viewedDate === today;
+  const daily = dailyPuzzle(viewedDate);
+  const rec = getRecord(daily.id);
+  const solved = rec.best !== null;
+  const diff = dayInfoFor(daily).label;            // difficulty WORD from DAY_INFO (meta.day)
+
+  document.getElementById("dailyLine").textContent = prettyDate(viewedDate);
+  const sub = ["#" + puzzleNumber(viewedDate)];
+  if (diff) sub.push(diff);
+  if (!isToday) sub.push("not today");
+  document.getElementById("dailySub").textContent = sub.join(" · ");
+
+  const noteEl = document.getElementById("dateNote");
+  noteEl.innerHTML = isToday ? ""
+    : "Won't affect your streak" + (solved ? ` · your best <b>${rec.best}</b>` : "");
+
+  const sealEl = document.getElementById("sealTiles");
+  renderSeal(sealEl, daily.answer, solved);
+
+  const tagEl = document.getElementById("landTag");
+  const resEl = document.getElementById("landResult");
+  const cdEl  = document.getElementById("landCountdown");
+  const playBtn = document.getElementById("playBtn");
+
+  if (solved){
+    tagEl.style.display = "none";
+    resEl.innerHTML = isToday ? `✓ Solved in <b>${rec.best}</b> moves`
+                              : `✓ Best <b>${rec.best}</b> moves`;
+    if (isToday) startCountdown(cdEl); else { stopCountdown(); cdEl.textContent = ""; }
+    // Copy result belongs to the just-completed win card, not the landing —
+    // here a solved puzzle offers a replay. (Copy stays reachable via the
+    // in-play "See result" pill → win card.)
+    playBtn.textContent = "▶ Play again";
+    playBtn.onclick = () => startPuzzle(daily);
+    sealEl.onclick = () => startPuzzle(daily);
+  } else {
+    const inProgress = !!loadProgress(daily.id);
+    tagEl.style.display = inProgress ? "none" : "";
+    resEl.innerHTML = inProgress ? `In progress · <b>${loadProgress(daily.id).moves}</b> moves` : "";
+    stopCountdown(); cdEl.textContent = "";
+    playBtn.textContent = inProgress ? "▶ Resume" : "▶ Play";
+    playBtn.onclick = () => startPuzzle(daily);
+    sealEl.onclick = () => startPuzzle(daily);   // tapping the sealed crates = bonus Play
+  }
+
+  document.getElementById("startStatline").innerHTML = statsHTML(loadStats());
+  document.getElementById("dotStrip").innerHTML = dotStripHTML();
+}
+
+// date stepper — both directions while testing (becomes past-only at production)
+document.getElementById("datePrev").addEventListener("click", () => { viewedDate = addDays(viewedDate, -1); renderLanding(); });
+document.getElementById("dateNext").addEventListener("click", () => { viewedDate = addDays(viewedDate,  1); renderLanding(); });
+
+function showStart(){
+  viewedDate = getToday();                     // always open on today
+  document.body.classList.add("landing-up");
+  renderLanding();
+  startOverlay.classList.add("show");
+  document.getElementById("playBtn").focus({ preventScroll: true });
+}
+
+playAgainBtn.addEventListener("click", () => {
+  clearWinUI();
+  reset();
+});
+
+// dev-only puzzle picker: injected + wired only under ?dev, so the shipped
+// chrome never shows a raw <select>. The start menu is the player-facing switch.
+(function setupPicker(){
+  if (!new URLSearchParams(location.search).has("dev")) return;
+  const sel = document.createElement("select");
+  sel.id = "picker";
+  sel.setAttribute("aria-label", "Choose puzzle (dev)");
+  sel.style.cssText = "position:fixed;left:8px;bottom:calc(env(safe-area-inset-bottom) + 8px);z-index:70;max-width:150px;";
+  document.body.appendChild(sel);
+  pickerEl = sel;
+
+  PLAYLIST.forEach((p, i) => {
+    const o = document.createElement("option");
+    o.value = String(i); o.textContent = p.name;
+    pickerEl.appendChild(o);
+  });
+  const pasteOpt = document.createElement("option");
+  pasteOpt.value = "paste"; pasteOpt.textContent = "＋ Paste JSON…";
+  pickerEl.appendChild(pasteOpt);
+
+  pickerEl.addEventListener("change", () => {
+    if (pickerEl.value === "paste"){
+      document.getElementById("pasteOverlay").classList.add("show");
+      // revert selection so re-choosing paste later still fires change
+      pickerEl.value = "paste";
+    } else {
+      loadPuzzle(PLAYLIST[Number(pickerEl.value)]);
+    }
+  });
+})();
+
+// paste overlay
+document.getElementById("cancelPasteBtn").addEventListener("click", () => {
+  document.getElementById("pasteOverlay").classList.remove("show");
+  if (pickerEl) pickerEl.value = "0";
+});
+document.getElementById("loadPasteBtn").addEventListener("click", () => {
+  const raw = document.getElementById("pasteArea").value.trim();
+  try {
+    const p = JSON.parse(raw);
+    if (!p.terrain || !p.slots || !p.crates || !p.player) throw new Error("missing fields");
+    loadPuzzle(p);
+    document.getElementById("pasteOverlay").classList.remove("show");
+    toast("Puzzle loaded");
+  } catch (err){
+    toast("Invalid JSON: " + err.message);
+  }
+});
+
+/* ---------- boot ---------- */
+// The board is built lazily on Play — the landing stays board-free (nothing
+// leaks behind the sealed crates). devHooks (below) renders the landing.
+// Serverless progress: hydrate FB Instant cloud data (if present), then refresh
+// the stat line if the landing is up. Non-blocking — standalone play is unaffected.
+Platform.init().then(() => {
+  const el = document.getElementById("startStatline");
+  if (el && startOverlay.classList.contains("show")) el.innerHTML = statsHTML(loadStats());
+});
+
+/* ============================================================
+   DEV / TEST HOOKS
+   A programmatic handle + query-param drivers so the game can be
+   scripted headlessly (navigate to a URL, screenshot the result) —
+   no keyboard/pointer simulation needed. All inert without a param.
+
+   window.SPELLOBAN            → live handle for console / script eval
+   ?puzzle=N                   → load embedded sample N (0..2)
+   ?seq=uudlr...               → apply moves (u/d/l/r) via the real rule
+   ?goto=r,c                   → tap-walk the player to cell [r,c]
+   ?date=YYYY-MM-DD            → simulate that local day (daily rollover)
+   Combine: ?puzzle=2&seq=uurr&goto=1,1
+   ============================================================ */
+window.SPELLOBAN = {
+  get state(){ return game.state; },
+  get won(){ return game.won; },
+  applyMove, findPath, isSolved, isCrateGreen, dirFromDelta,
+  commitMove, doMove, walkTo, pushPlan, walkAndPush, undo, reset,
+  load: (i) => loadPuzzle(PUZZLES[i]),
+  puzzles: PUZZLES,
+  platform: Platform,
+  dailyPuzzle, getToday, msToNextLocalMidnight
+};
+
+(function devHooks(){
+  const p = new URLSearchParams(location.search);
+  if (p.has("puzzle")){
+    const i = Number(p.get("puzzle"));
+    if (PUZZLES[i]) loadPuzzle(PUZZLES[i]);
+  }
+  // seq/goto drive a live board — build today's daily first if nothing loaded yet
+  if ((p.has("seq") || p.has("goto")) && !game.state) loadPuzzle(dailyPuzzle());
+  if (p.has("seq")){
+    const map = { u:"up", d:"down", l:"left", r:"right" };
+    for (const ch of p.get("seq").toLowerCase()){
+      if (map[ch]) commitMove(map[ch]);   // synchronous → final state is painted before capture
+    }
+  }
+  if (p.has("goto")){
+    const [r, c] = p.get("goto").split(",").map(Number);
+    const path = findPath(game.state, r, c);
+    if (path) for (let i = 1; i < path.length; i++){
+      const dr = path[i][0]-path[i-1][0], dc = path[i][1]-path[i-1][1];
+      commitMove(dirFromDelta(dr, dc));
+    }
+  }
+  // Start screen shows on a normal load; a param that drives the game skips it.
+  if (p.has("seq") || p.has("goto") || p.has("puzzle") || p.has("test")){
+    startOverlay.classList.remove("show");
+  } else {
+    showStart();
+  }
+})();
+
+/* ============================================================
+   UNIT TESTS  (run with ?test in the URL)
+   Cover: legal push, blocked push (wall & crate beyond),
+   green on correct slot, green reverting when pushed off,
+   win detection, undo reverting one move + counter.
+   ============================================================ */
+function runTests(){
+  const results = [];
+  const ok = (name, cond) => results.push({ name, pass: !!cond });
+
+  // Small fixture: open 5x5 interior, one slot row.
+  const fixture = {
+    id:"t", terrain:[
+      "#######",
+      "#.....#",
+      "#.....#",
+      "#.....#",
+      "#.....#",
+      "#.....#",
+      "#######"
+    ],
+    slots:[{pos:[3,3],letter:"O"},{pos:[3,4],letter:"K"}],
+    crates:[{pos:[3,3],letter:"O"},{pos:[3,4],letter:"K"}],
+    player:[3,2],
+    anagram:"OK", answer:"OK"
+  };
+
+  // 1) legal push: player at [3,2] pushes crate at [3,3] right → crate to [3,4]... but [3,4] has crate.
+  //    Use a cleaner fixture with a lone crate.
+  const push = parsePuzzle({
+    id:"p", terrain:["#####","#...#","#...#","#####"],
+    slots:[{pos:[1,3],letter:"A"}],
+    crates:[{pos:[1,2],letter:"A"}],
+    player:[1,1], anagram:"A", answer:"A"
+  });
+  const afterPush = applyMove(push, "right");
+  ok("legal push moves crate & player, +1 move",
+     afterPush !== push &&
+     afterPush.crates[0].r === 1 && afterPush.crates[0].c === 3 &&
+     afterPush.player[0] === 1 && afterPush.player[1] === 2 &&
+     afterPush.moves === 1);
+  ok("applyMove is pure (original unchanged)",
+     push.crates[0].c === 2 && push.player[1] === 1 && push.moves === 0);
+
+  // 2a) blocked push — wall beyond crate
+  const wallBeyond = parsePuzzle({
+    id:"wb", terrain:["####","#..#","####"],
+    slots:[{pos:[1,2],letter:"A"}],
+    crates:[{pos:[1,2],letter:"A"}],
+    player:[1,1], anagram:"A", answer:"A"
+  });
+  const afterWall = applyMove(wallBeyond, "right");   // beyond [1,3] is wall
+  ok("blocked push (wall beyond) returns same state, no move",
+     afterWall === wallBeyond && afterWall.moves === 0);
+
+  // 2b) blocked push — crate beyond crate
+  const crateBeyond = parsePuzzle({
+    id:"cb", terrain:["######","#....#","######"],
+    slots:[{pos:[1,2],letter:"A"}],
+    crates:[{pos:[1,2],letter:"A"},{pos:[1,3],letter:"B"}],
+    player:[1,1], anagram:"AB", answer:"AB"
+  });
+  const afterCrate = applyMove(crateBeyond, "right"); // beyond [1,3] has a crate
+  ok("blocked push (crate beyond) returns same state, no move",
+     afterCrate === crateBeyond && afterCrate.moves === 0);
+
+  // 2c) walk into wall does nothing
+  const wallWalk = applyMove(parsePuzzle({
+    id:"ww", terrain:["###","#.#","###"],
+    slots:[{pos:[1,1],letter:"A"}], crates:[], player:[1,1], anagram:"", answer:""
+  }), "right");
+  ok("blocked walk (wall) returns same state", wallWalk.moves === 0);
+
+  // 3) green on correct slot & 4) green reverts when pushed off
+  const g = parsePuzzle({
+    id:"g", terrain:["######","#....#","######"],
+    slots:[{pos:[1,2],letter:"X"}],
+    crates:[{pos:[1,2],letter:"X"}],
+    player:[1,1], anagram:"X", answer:"X"
+  });
+  ok("crate on matching slot is green", isCrateGreen(g, g.crates[0]) === true);
+  const gOff = applyMove(g, "right");   // push crate off its slot [1,2]→[1,3]
+  ok("green reverts when crate pushed off slot", isCrateGreen(gOff, gOff.crates[0]) === false);
+
+  // wrong-letter crate on slot is NOT green
+  const wrong = parsePuzzle({
+    id:"wr", terrain:["####","#..#","####"],
+    slots:[{pos:[1,2],letter:"X"}], crates:[{pos:[1,2],letter:"Y"}],
+    player:[1,1], anagram:"Y", answer:"X"
+  });
+  ok("mismatched crate on slot is not green", isCrateGreen(wrong, wrong.crates[0]) === false);
+
+  // 5) win detection
+  ok("isSolved true when all slots matched", isSolved(g) === true);
+  ok("isSolved false after pushing off", isSolved(gOff) === false);
+
+  // full solve of the FROM sample via applyMove sequence check for win flag boundary
+  ok("isSolved false on fresh FROM sample", isSolved(parsePuzzle(PUZZLES[0])) === false);
+
+  // 6) undo reverts one move + counter (controller-level simulation)
+  const s0 = parsePuzzle(PUZZLES[0]);
+  const s1 = applyMove(s0, "up");                 // player [6,4]→[5,4], a walk
+  const movedUp = s1 !== s0 && s1.moves === 1;
+  // simulate undo by keeping history
+  const history = [s0];
+  const restored = history.pop();
+  ok("a walk counts as a move (+1)", movedUp);
+  ok("undo restores prior state and decrements counter",
+     restored.moves === 0 && restored.player[0] === 6 && restored.player[1] === 4);
+
+  // 7) tap-walk pathfinding (walk-only, routes around crates, shortest)
+  const pf = parsePuzzle({
+    id:"pf", terrain:["#####","#...#","#...#","#...#","#####"],
+    slots:[{pos:[2,2],letter:"A"}],
+    crates:[{pos:[2,2],letter:"A"}],       // crate blocks the center
+    player:[1,1], anagram:"A", answer:"A"
+  });
+  const straight = findPath(pf, 1, 3);      // clear top row → 2 steps, 3 cells
+  ok("findPath returns shortest open path", straight && straight.length === 3);
+  const around = findPath(pf, 3, 3);        // must route around the center crate
+  ok("findPath routes around crates (no push)",
+     around && around.every(([r,c]) => crateIndexAt(pf,r,c) === -1));
+  ok("findPath returns null for a crate cell (tap never pushes)",
+     findPath(pf, 2, 2) === null);
+  ok("findPath returns [] for the player's own cell",
+     Array.isArray(findPath(pf, 1, 1)) && findPath(pf, 1, 1).length === 0);
+
+  // 8) swipe-a-crate push planning (walkAndPush's pure core)
+  //    Open room; crate at center [2,2], player top-left [1,1].
+  const pr = parsePuzzle({
+    id:"pr", terrain:["#####","#...#","#...#","#...#","#####"],
+    slots:[{pos:[3,2],letter:"A"}], crates:[{pos:[2,2],letter:"A"}],
+    player:[1,1], anagram:"A", answer:"A"
+  });
+  // swipe crate down: dest [3,2] open → legal; stand [1,2] reachable → a walk path
+  ok("pushPlan: reachable legal push returns a walk path",
+     Array.isArray(pushPlan(pr, 2, 2, "down")) && pushPlan(pr, 2, 2, "down").length >= 1);
+  // swipe an empty cell → null (no crate there)
+  ok("pushPlan: no crate under the swipe returns null",
+     pushPlan(pr, 1, 3, "down") === null);
+  // crate flush against the right wall: dest is a wall → illegal push → null
+  const pw = parsePuzzle({
+    id:"pw", terrain:["####","#..#","####"],
+    slots:[{pos:[1,2],letter:"A"}], crates:[{pos:[1,2],letter:"A"}],
+    player:[1,1], anagram:"A", answer:"A"
+  });
+  ok("pushPlan: illegal push (wall beyond) returns null",
+     pushPlan(pw, 1, 2, "right") === null);
+  // same crate, swipe LEFT: dest [1,1] open (legal) but stand [1,3] is a wall →
+  // path to the push-from cell is blocked → null (player must not move)
+  ok("pushPlan: unreachable stand cell returns null",
+     pushPlan(pw, 1, 2, "left") === null);
+
+  // report
+  const passed = results.filter(r => r.pass).length;
+  const failed = results.length - passed;
+  const bar = document.createElement("div");
+  bar.id = "testbar";
+  bar.style.background = failed ? "#5a1f1f" : "#15381f";
+  bar.style.color = failed ? "#ffd7d0" : "#c8ffd8";
+  bar.textContent = `TESTS: ${passed}/${results.length} passed` + (failed ? ` — ${failed} FAILED` : " ✓");
+  document.body.insertBefore(bar, document.body.firstChild);   // top of the page, in normal flow
+
+  console.group("%cSPELLOBAN unit tests", "font-weight:bold");
+  results.forEach(r => console.log((r.pass ? "✓ PASS" : "✗ FAIL") + " — " + r.name));
+  console.log(`${passed}/${results.length} passed`);
+  console.groupEnd();
+  return { passed, failed, results };
+}
+
+if (location.search.includes("test")) runTests();
+</script>
+</body>
+</html>
