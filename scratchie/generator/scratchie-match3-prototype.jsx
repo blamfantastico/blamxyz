@@ -69,12 +69,14 @@ const GAMES = [
 ];
 const RULES_BY_TYPE = { match3: MATCH3_RULES, keymatch: KEYMATCH_RULES, prizematch: PRIZEMATCH_RULES };
 
+// Themes are visual identity (brand name, icon, accent color) — independent of the
+// game type. `symbols` is used by Match-3; every type uses the branding + accent.
 const SYMBOL_THEMES = {
-  fruit: { name: "Fruit Frenzy", symbols: ["🍒", "🍋", "🍊", "🍇", "🍉", "🍓", "🫐", "🍑"] },
-  gems: { name: "Gem Rush", symbols: ["💎", "💍", "👑", "🔮", "⭐", "🌟", "💫", "✨"] },
-  ocean: { name: "Ocean Treasure", symbols: ["🐚", "🦀", "🐙", "🐠", "🦈", "🐋", "🪸", "🦞"] },
-  space: { name: "Cosmic Cash", symbols: ["🚀", "🛸", "🌍", "🌙", "☄️", "🪐", "👽", "🌌"] },
-  retro: { name: "Arcade Jackpot", symbols: ["👾", "🕹️", "🎮", "🎰", "🃏", "🎲", "🎯", "🏆"] },
+  fruit: { name: "Fruit Frenzy", icon: "🍒", accent: "#ff6b6b", accent2: "#ffa94d", glow: "rgba(255,107,107,0.45)", symbols: ["🍒", "🍋", "🍊", "🍇", "🍉", "🍓", "🫐", "🍑"] },
+  gems: { name: "Gem Rush", icon: "💎", accent: "#b388ff", accent2: "#00e5ff", glow: "rgba(179,136,255,0.45)", symbols: ["💎", "💍", "👑", "🔮", "⭐", "🌟", "💫", "✨"] },
+  ocean: { name: "Ocean Treasure", icon: "🌊", accent: "#4dd0e1", accent2: "#0288d1", glow: "rgba(77,208,225,0.45)", symbols: ["🐚", "🦀", "🐙", "🐠", "🦈", "🐋", "🪸", "🦞"] },
+  space: { name: "Cosmic Cash", icon: "🚀", accent: "#b39ddb", accent2: "#ff8a80", glow: "rgba(179,157,219,0.45)", symbols: ["🚀", "🛸", "🌍", "🌙", "☄️", "🪐", "👽", "🌌"] },
+  retro: { name: "Arcade Jackpot", icon: "👾", accent: "#69f0ae", accent2: "#ff4081", glow: "rgba(255,64,129,0.45)", symbols: ["👾", "🕹️", "🎮", "🎰", "🃏", "🎲", "🎯", "🏆"] },
 };
 
 // --- Helpers ---
@@ -171,7 +173,7 @@ function generateMatch3(rules, theme, forceOutcome) {
   });
 }
 
-function generateKeyMatch(rules, forceOutcome) {
+function generateKeyMatch(rules, theme, forceOutcome) {
   const out = rollOutcome(forceOutcome, rules.nearMiss.rate);
   const winning = [];
   const winSet = new Set();
@@ -216,7 +218,7 @@ function generateKeyMatch(rules, forceOutcome) {
   }
 
   const winnerCell = yourNumbers.find((y) => y.isWinning) || null;
-  return envelope("keymatch", null, rules.version, {
+  return envelope("keymatch", theme, rules.version, {
     isWinner: out === "win",
     prizeTier: winnerCell?.prizeTier ?? null,
     prizeValue: winnerCell?.prizeValue ?? null,
@@ -225,7 +227,7 @@ function generateKeyMatch(rules, forceOutcome) {
   }, { winningNumbers: winning, yourNumbers });
 }
 
-function generatePrizeMatch(rules, forceOutcome) {
+function generatePrizeMatch(rules, theme, forceOutcome) {
   const out = rollOutcome(forceOutcome, rules.nearMiss.rate);
   const N = rules.grid.cellCount;
   const amounts = rules.amounts;
@@ -258,7 +260,7 @@ function generatePrizeMatch(rules, forceOutcome) {
     setCell(positions[i], amt, false);
   }
 
-  return envelope("prizematch", null, rules.version, {
+  return envelope("prizematch", theme, rules.version, {
     isWinner: out === "win",
     prizeTier: won?.tier ?? null,
     prizeValue: won?.value ?? null,
@@ -272,8 +274,8 @@ function generatePrizeMatch(rules, forceOutcome) {
 }
 
 function generateForType(gameType, theme, forceOutcome) {
-  if (gameType === "keymatch") return generateKeyMatch(KEYMATCH_RULES, forceOutcome);
-  if (gameType === "prizematch") return generatePrizeMatch(PRIZEMATCH_RULES, forceOutcome);
+  if (gameType === "keymatch") return generateKeyMatch(KEYMATCH_RULES, theme, forceOutcome);
+  if (gameType === "prizematch") return generatePrizeMatch(PRIZEMATCH_RULES, theme, forceOutcome);
   return generateMatch3(MATCH3_RULES, theme, forceOutcome);
 }
 
@@ -333,35 +335,42 @@ export default function ScratchiePrototype() {
 
   const foil = (idx) => FOIL_PATTERNS[idx % FOIL_PATTERNS.length];
 
+  // The ticket keeps the theme it was generated with; the selector drives it otherwise.
+  const at = SYMBOL_THEMES[(ticket && ticket.themeId) || theme];
+
   return (
-    <div style={{ minHeight: "100vh", background: "#1a1a2e", color: "#e0e0e0", fontFamily: "'JetBrains Mono', 'Fira Code', monospace", padding: "24px" }}>
+    <div style={{
+      minHeight: "100vh", background: "#1a1a2e", color: "#e0e0e0",
+      fontFamily: "'JetBrains Mono', 'Fira Code', monospace", padding: "24px",
+      "--accent": at.accent, "--accent2": at.accent2, "--glow": at.glow,
+    }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=Bangers&display=swap');
-        .ticket-title { font-family: 'Bangers', cursive; font-size: 28px; letter-spacing: 3px; text-align: center; background: linear-gradient(135deg, #ffd700, #ff8c00, #ffd700); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 4px; }
-        .ticket-card { background: linear-gradient(145deg, #16213e, #0f3460); border: 3px solid #ffd700; border-radius: 16px; padding: 20px; max-width: 340px; margin: 0 auto; box-shadow: 0 0 20px rgba(255,215,0,0.15), inset 0 1px 0 rgba(255,255,255,0.05); position: relative; overflow: hidden; }
+        .ticket-title { font-family: 'Bangers', cursive; font-size: 28px; letter-spacing: 3px; text-align: center; background: linear-gradient(135deg, var(--accent), var(--accent2), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 4px; }
+        .ticket-card { background: linear-gradient(145deg, #16213e, #0f3460); border: 3px solid var(--accent); border-radius: 16px; padding: 20px; max-width: 340px; margin: 0 auto; box-shadow: 0 0 20px rgba(255,215,0,0.15), inset 0 1px 0 rgba(255,255,255,0.05); position: relative; overflow: hidden; }
         .cell-btn { width: 80px; height: 80px; border: 2px solid #334; border-radius: 10px; font-size: 34px; cursor: pointer; transition: all 0.2s ease; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; user-select: none; }
         .cell-foil { background: linear-gradient(135deg, #4a4a6a, #5a5a7a, #4a4a6a); color: #6a6a8a; font-size: 14px; letter-spacing: 1px; border-color: #555; }
-        .cell-foil:hover { background: linear-gradient(135deg, #5a5a7a, #6a6a8a, #5a5a7a); border-color: #ffd700; transform: scale(1.05); }
+        .cell-foil:hover { background: linear-gradient(135deg, #5a5a7a, #6a6a8a, #5a5a7a); border-color: var(--accent); transform: scale(1.05); }
         .cell-revealed { background: #0d1b2a; border-color: #334; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        .cell-winner { border-color: #ffd700 !important; box-shadow: 0 0 12px rgba(255,215,0,0.4); animation: popIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275), winGlow 1.5s ease-in-out infinite; }
+        .cell-winner { border-color: var(--accent) !important; box-shadow: 0 0 12px var(--glow); animation: popIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275), winGlow 1.5s ease-in-out infinite; }
         .cell-num { font-size: 26px; font-weight: 800; line-height: 1; }
         .cell-prize { font-size: 12px; color: #b9b96a; margin-top: 3px; }
         .cell-amount { font-size: 20px; font-weight: 800; color: #ffe08a; }
         @keyframes popIn { 0% { transform: scale(0.7); opacity: 0.5; } 100% { transform: scale(1); opacity: 1; } }
-        @keyframes winGlow { 0%,100% { box-shadow: 0 0 12px rgba(255,215,0,0.4);} 50% { box-shadow: 0 0 24px rgba(255,215,0,0.7);} }
+        @keyframes winGlow { 0%,100% { box-shadow: 0 0 12px var(--glow);} 50% { box-shadow: 0 0 24px var(--glow);} }
         .ctrl-btn { padding: 8px 16px; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s ease; border: 2px solid; }
-        .ctrl-primary { background: #ffd700; color: #1a1a2e; border-color: #ffd700; }
+        .ctrl-primary { background: var(--accent); color: #1a1a2e; border-color: var(--accent); }
         .ctrl-primary:hover { background: #ffe44d; transform: translateY(-1px); }
         .ctrl-secondary { background: transparent; color: #8888aa; border-color: #334; }
-        .ctrl-secondary:hover { border-color: #ffd700; color: #ffd700; }
-        .ctrl-active { background: rgba(255,215,0,0.15); color: #ffd700; border-color: #ffd700; }
+        .ctrl-secondary:hover { border-color: var(--accent); color: var(--accent); }
+        .ctrl-active { background: rgba(255,215,0,0.15); color: var(--accent); border-color: var(--accent); }
         .theme-chip { padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: 2px solid #334; background: transparent; color: #8888aa; transition: all 0.15s ease; font-family: 'JetBrains Mono', monospace; white-space: nowrap; }
         .theme-chip:hover { border-color: #666; color: #ccc; }
-        .theme-active { border-color: #ffd700; color: #ffd700; background: rgba(255,215,0,0.1); }
-        .keynum-chip { display:inline-flex; align-items:center; justify-content:center; min-width: 40px; height: 40px; padding: 0 8px; border-radius: 8px; font-size: 20px; font-weight: 800; background: linear-gradient(135deg,#ffd700,#ff8c00); color:#1a1a2e; }
+        .theme-active { border-color: var(--accent); color: var(--accent); background: rgba(255,215,0,0.1); }
+        .keynum-chip { display:inline-flex; align-items:center; justify-content:center; min-width: 40px; height: 40px; padding: 0 8px; border-radius: 8px; font-size: 20px; font-weight: 800; background: linear-gradient(135deg,var(--accent),var(--accent2)); color:#1a1a2e; }
         .result-banner { text-align: center; padding: 12px; border-radius: 10px; margin-top: 12px; font-weight: 700; font-size: 15px; animation: popIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275); }
-        .result-win { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,140,0,0.2)); border: 2px solid #ffd700; color: #ffd700; }
+        .result-win { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,140,0,0.2)); border: 2px solid var(--accent); color: var(--accent); }
         .result-near { background: rgba(255,100,100,0.1); border: 2px solid #664; color: #cc8844; }
         .result-loss { background: rgba(100,100,150,0.1); border: 2px solid #334; color: #666; }
         .data-panel { background: #0d1b2a; border: 1px solid #1a2a4a; border-radius: 10px; padding: 14px; font-size: 11px; line-height: 1.6; max-height: 460px; overflow-y: auto; }
@@ -373,13 +382,14 @@ export default function ScratchiePrototype() {
       <div style={{ maxWidth: 720, margin: "0 auto" }}>
         {/* Header */}
         <div style={{ textAlign: "center", marginBottom: 20 }}>
-          <h1 style={{ fontFamily: "'Bangers', cursive", fontSize: 36, letterSpacing: 4, background: "linear-gradient(135deg,#ffd700,#ff8c00)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", margin: 0 }}>
+          <h1 style={{ fontFamily: "'Bangers', cursive", fontSize: 36, letterSpacing: 4, background: "linear-gradient(135deg,var(--accent),var(--accent2))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", margin: 0 }}>
             SCRATCHIE
           </h1>
           <div style={{ fontSize: 12, color: "#556", marginTop: 4 }}>Ticket Generator Prototype</div>
         </div>
 
         {/* Game-type selector */}
+        <div className="section-label" style={{ margin: "0 0 4px" }}>Game</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", marginBottom: 12 }}>
           {GAMES.map((g) => (
             <button key={g.id} className={`theme-chip ${gameType === g.id ? "theme-active" : ""}`} onClick={() => { setGameType(g.id); setTicket(null); }}>
@@ -388,16 +398,15 @@ export default function ScratchiePrototype() {
           ))}
         </div>
 
-        {/* Theme selector (symbol games only) */}
-        {gameType === "match3" && (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", marginBottom: 16 }}>
-            {Object.entries(SYMBOL_THEMES).map(([key, t]) => (
-              <button key={key} className={`theme-chip ${theme === key ? "theme-active" : ""}`} onClick={() => setTheme(key)}>
-                {t.symbols[0]} {t.name}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Theme selector — visual identity, applies to every game type */}
+        <div className="section-label" style={{ margin: "0 0 4px" }}>Theme</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", marginBottom: 16 }}>
+          {Object.entries(SYMBOL_THEMES).map(([key, t]) => (
+            <button key={key} className={`theme-chip ${theme === key ? "theme-active" : ""}`} onClick={() => setTheme(key)}>
+              {t.icon} {t.name}
+            </button>
+          ))}
+        </div>
 
         {/* Outcome controls */}
         <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 20, flexWrap: "wrap" }}>
@@ -412,9 +421,9 @@ export default function ScratchiePrototype() {
             {/* Ticket card */}
             <div>
               <div className="ticket-card">
-                <div className="ticket-title">{RULES_BY_TYPE[ticket.gameType].name}</div>
+                <div className="ticket-title">{SYMBOL_THEMES[ticket.themeId].icon} {SYMBOL_THEMES[ticket.themeId].name}</div>
                 <div style={{ textAlign: "center", fontSize: 10, color: "#778", marginBottom: 12, letterSpacing: 0.5 }}>
-                  {RULES_BY_TYPE[ticket.gameType].howToWin}
+                  {RULES_BY_TYPE[ticket.gameType].name.toUpperCase()} · {RULES_BY_TYPE[ticket.gameType].howToWin}
                 </div>
 
                 {/* --- Match-3 & Prize-Match: a 3×3 reveal grid --- */}
@@ -448,7 +457,7 @@ export default function ScratchiePrototype() {
                           <button key={idx} className={`cell-btn ${isRev ? (showWin ? "cell-winner" : "cell-revealed") : "cell-foil"}`} onClick={() => !isRev && revealCell(idx)}>
                             {!isRev ? foil(idx) : (
                               <>
-                                <span className="cell-num" style={{ color: showWin ? "#ffd700" : "#dfe" }}>{cell.number}</span>
+                                <span className="cell-num" style={{ color: showWin ? "var(--accent)" : "#dfe" }}>{cell.number}</span>
                                 <span className="cell-prize">{cell.prizeLabel}</span>
                               </>
                             )}
@@ -463,7 +472,7 @@ export default function ScratchiePrototype() {
                 {ticket.gameType === "match3" && (
                   <div style={{ marginTop: 14, padding: "8px 12px", background: "rgba(0,0,0,0.2)", borderRadius: 8, fontSize: 11 }}>
                     {MATCH3_RULES.prizeTiers.map((tier) => (
-                      <div key={tier.id} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0", color: allRevealed && ticket.outcome.prizeTier === tier.id ? "#ffd700" : "#667" }}>
+                      <div key={tier.id} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0", color: allRevealed && ticket.outcome.prizeTier === tier.id ? "var(--accent)" : "#667" }}>
                         <span>{tier.condition}</span>
                         <span style={{ fontWeight: 700 }}>{tier.label}</span>
                       </div>
@@ -489,8 +498,8 @@ export default function ScratchiePrototype() {
                     {history.map((h, i) => (
                       <div key={h.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 0", borderBottom: i < history.length - 1 ? "1px solid #1a2a4a" : "none", fontSize: 11 }}>
                         <span style={{ width: 20, color: "#445" }}>#{history.length - i}</span>
-                        <span>{GAMES.find((g) => g.id === h.gameType)?.icon}</span>
-                        <span style={{ color: h.isWinner ? "#ffd700" : h.nearMiss ? "#cc8844" : "#556", fontWeight: h.isWinner ? 700 : 400 }}>
+                        <span>{SYMBOL_THEMES[h.theme]?.icon}{GAMES.find((g) => g.id === h.gameType)?.icon}</span>
+                        <span style={{ color: h.isWinner ? "var(--accent)" : h.nearMiss ? "#cc8844" : "#556", fontWeight: h.isWinner ? 700 : 400 }}>
                           {h.isWinner ? `WIN ${h.prizeLabel}` : h.nearMiss ? "NEAR MISS" : "LOSS"}
                         </span>
                       </div>
