@@ -339,10 +339,12 @@ export default function ScratchiePrototype() {
   // The ticket keeps the theme it was generated with; the selector drives it otherwise.
   const at = SYMBOL_THEMES[(ticket && ticket.themeId) || theme];
 
-  // Unscratched cells show a dimmed theme symbol (varied per cell) as placeholder
-  // "foil art" — drawn from the theme's symbol SET so a Gem Rush cover isn't nine
-  // identical diamonds. Swapped for a real foil texture when art assets land.
+  // Unscratched cover art. For number/amount games, a dimmed theme symbol (varied
+  // per cell from the theme's SET) — decorative, clearly distinct from the number
+  // underneath. For Match-3 the tiles reveal emojis, so an emoji cover is confusing;
+  // use a neutral foil "?" instead. All are placeholders for real foil textures.
   const coverArt = (idx) => {
+    if (ticket.gameType === "match3") return <span className="foil-plain">?</span>;
     const s = SYMBOL_THEMES[ticket.themeId].symbols;
     return <span className="foil-motif">{s[idx % s.length]}</span>;
   };
@@ -361,6 +363,7 @@ export default function ScratchiePrototype() {
         .cell-btn { width: 80px; height: 80px; border: 2px solid #334; border-radius: 10px; font-size: 34px; cursor: pointer; transition: all 0.2s ease; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; user-select: none; }
         .cell-foil { background: linear-gradient(135deg, #4a4a6a, #5a5a7a, #4a4a6a); color: #6a6a8a; font-size: 14px; letter-spacing: 1px; border-color: #555; }
         .foil-motif { font-size: 30px; opacity: 0.4; filter: grayscale(0.65) brightness(1.1); }
+        .foil-plain { font-size: 30px; font-weight: 800; color: #8a8aa8; opacity: 0.55; }
         .ticket-watermark { position: absolute; inset: 0; display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; font-size: 34px; line-height: 1; opacity: 0.06; pointer-events: none; overflow: hidden; transform: rotate(-14deg) scale(1.35); z-index: 0; }
         .ticket-body { position: relative; z-index: 1; }
         .cell-foil:hover { background: linear-gradient(135deg, #5a5a7a, #6a6a8a, #5a5a7a); border-color: var(--accent); transform: scale(1.05); }
