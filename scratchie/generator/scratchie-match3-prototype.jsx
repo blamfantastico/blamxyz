@@ -373,7 +373,7 @@ export default function ScratchiePrototype() {
         @keyframes winGlow { 0%,100% { box-shadow: 0 0 12px var(--glow);} 50% { box-shadow: 0 0 24px var(--glow);} }
         .ctrl-btn { padding: 8px 16px; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s ease; border: 2px solid; }
         .ctrl-primary { background: var(--accent); color: #1a1a2e; border-color: var(--accent); }
-        .ctrl-primary:hover { background: #ffe44d; transform: translateY(-1px); }
+        .ctrl-primary:hover { background: var(--accent); filter: brightness(1.12); transform: translateY(-1px); }
         .ctrl-secondary { background: transparent; color: #8888aa; border-color: #334; }
         .ctrl-secondary:hover { border-color: var(--accent); color: var(--accent); }
         .ctrl-active { background: rgba(255,215,0,0.15); color: var(--accent); border-color: var(--accent); }
