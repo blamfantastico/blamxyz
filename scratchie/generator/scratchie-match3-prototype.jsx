@@ -69,8 +69,13 @@ const GAMES = [
 ];
 const RULES_BY_TYPE = { match3: MATCH3_RULES, keymatch: KEYMATCH_RULES, prizematch: PRIZEMATCH_RULES };
 
-// Themes are visual identity (brand name, icon, accent color) — independent of the
-// game type. `symbols` is used by Match-3; every type uses the branding + accent.
+// A theme is the ticket's visual identity, independent of game type. Treat each theme
+// as an asset-pack manifest — emoji/CSS placeholders now, real images later (resolved
+// by themeId from the downloaded pack):
+//   name + icon          -> brand logo            (emoji + text now)
+//   accent/accent2/glow  -> palette               (stays)
+//   symbols              -> symbol art  +  foil-cover motifs  +  background watermark
+// `symbols` is a SET (not one icon) so covers and watermarks have variety across cells.
 const SYMBOL_THEMES = {
   fruit: { name: "Fruit Frenzy", icon: "🍒", accent: "#ff6b6b", accent2: "#ffa94d", glow: "rgba(255,107,107,0.45)", symbols: ["🍒", "🍋", "🍊", "🍇", "🍉", "🍓", "🫐", "🍑"] },
   gems: { name: "Gem Rush", icon: "💎", accent: "#b388ff", accent2: "#00e5ff", glow: "rgba(179,136,255,0.45)", symbols: ["💎", "💍", "👑", "🔮", "⭐", "🌟", "💫", "✨"] },
@@ -285,8 +290,6 @@ function cellsOf(ticket) {
 }
 
 // --- UI ---
-const FOIL_PATTERNS = ["▓▓▓", "███", "░░░", "╬╬╬", "◈◈◈"];
-
 export default function ScratchiePrototype() {
   const [gameType, setGameType] = useState("match3");
   const [theme, setTheme] = useState("fruit");
@@ -333,10 +336,16 @@ export default function ScratchiePrototype() {
     </div>
   );
 
-  const foil = (idx) => FOIL_PATTERNS[idx % FOIL_PATTERNS.length];
-
   // The ticket keeps the theme it was generated with; the selector drives it otherwise.
   const at = SYMBOL_THEMES[(ticket && ticket.themeId) || theme];
+
+  // Unscratched cells show a dimmed theme symbol (varied per cell) as placeholder
+  // "foil art" — drawn from the theme's symbol SET so a Gem Rush cover isn't nine
+  // identical diamonds. Swapped for a real foil texture when art assets land.
+  const coverArt = (idx) => {
+    const s = SYMBOL_THEMES[ticket.themeId].symbols;
+    return <span className="foil-motif">{s[idx % s.length]}</span>;
+  };
 
   return (
     <div style={{
@@ -351,6 +360,9 @@ export default function ScratchiePrototype() {
         .ticket-card { background: linear-gradient(145deg, #16213e, #0f3460); border: 3px solid var(--accent); border-radius: 16px; padding: 20px; max-width: 340px; margin: 0 auto; box-shadow: 0 0 20px rgba(255,215,0,0.15), inset 0 1px 0 rgba(255,255,255,0.05); position: relative; overflow: hidden; }
         .cell-btn { width: 80px; height: 80px; border: 2px solid #334; border-radius: 10px; font-size: 34px; cursor: pointer; transition: all 0.2s ease; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; user-select: none; }
         .cell-foil { background: linear-gradient(135deg, #4a4a6a, #5a5a7a, #4a4a6a); color: #6a6a8a; font-size: 14px; letter-spacing: 1px; border-color: #555; }
+        .foil-motif { font-size: 30px; opacity: 0.4; filter: grayscale(0.65) brightness(1.1); }
+        .ticket-watermark { position: absolute; inset: 0; display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; font-size: 34px; line-height: 1; opacity: 0.06; pointer-events: none; overflow: hidden; transform: rotate(-14deg) scale(1.35); z-index: 0; }
+        .ticket-body { position: relative; z-index: 1; }
         .cell-foil:hover { background: linear-gradient(135deg, #5a5a7a, #6a6a8a, #5a5a7a); border-color: var(--accent); transform: scale(1.05); }
         .cell-revealed { background: #0d1b2a; border-color: #334; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         .cell-winner { border-color: var(--accent) !important; box-shadow: 0 0 12px var(--glow); animation: popIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275), winGlow 1.5s ease-in-out infinite; }
@@ -421,6 +433,13 @@ export default function ScratchiePrototype() {
             {/* Ticket card */}
             <div>
               <div className="ticket-card">
+                {/* Faint tiled symbol watermark — placeholder for real background art */}
+                <div className="ticket-watermark" aria-hidden="true">
+                  {Array.from({ length: 48 }).map((_, i) => (
+                    <span key={i}>{at.symbols[i % at.symbols.length]}</span>
+                  ))}
+                </div>
+                <div className="ticket-body">
                 <div className="ticket-title">{SYMBOL_THEMES[ticket.themeId].icon} {SYMBOL_THEMES[ticket.themeId].name}</div>
                 <div style={{ textAlign: "center", fontSize: 10, color: "#778", marginBottom: 12, letterSpacing: 0.5 }}>
                   {RULES_BY_TYPE[ticket.gameType].name.toUpperCase()} · {RULES_BY_TYPE[ticket.gameType].howToWin}
@@ -434,7 +453,7 @@ export default function ScratchiePrototype() {
                       const showWin = isRev && allRevealed && cell.isWinning;
                       return (
                         <button key={idx} className={`cell-btn ${isRev ? (showWin ? "cell-winner" : "cell-revealed") : "cell-foil"}`} onClick={() => !isRev && revealCell(idx)}>
-                          {!isRev ? foil(idx) : ticket.gameType === "match3" ? cell.symbolId : <span className="cell-amount">{cell.prizeLabel}</span>}
+                          {!isRev ? coverArt(idx) : ticket.gameType === "match3" ? cell.symbolId : <span className="cell-amount">{cell.prizeLabel}</span>}
                         </button>
                       );
                     })}
@@ -455,7 +474,7 @@ export default function ScratchiePrototype() {
                         const showWin = isRev && allRevealed && cell.isWinning;
                         return (
                           <button key={idx} className={`cell-btn ${isRev ? (showWin ? "cell-winner" : "cell-revealed") : "cell-foil"}`} onClick={() => !isRev && revealCell(idx)}>
-                            {!isRev ? foil(idx) : (
+                            {!isRev ? coverArt(idx) : (
                               <>
                                 <span className="cell-num" style={{ color: showWin ? "var(--accent)" : "#dfe" }}>{cell.number}</span>
                                 <span className="cell-prize">{cell.prizeLabel}</span>
@@ -481,6 +500,7 @@ export default function ScratchiePrototype() {
                 )}
 
                 {allRevealed && banner(ticket)}
+                </div>
               </div>
             </div>
 
