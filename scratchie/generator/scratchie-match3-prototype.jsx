@@ -362,7 +362,7 @@ export default function ScratchiePrototype() {
         .ticket-card { background: linear-gradient(145deg, #16213e, #0f3460); border: 3px solid var(--accent); border-radius: 16px; padding: 20px; max-width: 340px; margin: 0 auto; box-shadow: 0 0 20px rgba(255,215,0,0.15), inset 0 1px 0 rgba(255,255,255,0.05); position: relative; overflow: hidden; }
         .cell-btn { width: 80px; height: 80px; border: 2px solid #334; border-radius: 10px; font-size: 34px; cursor: pointer; transition: all 0.2s ease; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; user-select: none; }
         .cell-foil { background: linear-gradient(135deg, #4a4a6a, #5a5a7a, #4a4a6a); color: #6a6a8a; font-size: 14px; letter-spacing: 1px; border-color: #555; }
-        .foil-motif { font-size: 30px; opacity: 0.4; filter: grayscale(0.65) brightness(1.1); }
+        .foil-motif { font-size: 30px; }
         .foil-plain { font-size: 30px; font-weight: 800; color: #8a8aa8; opacity: 0.55; }
         .ticket-watermark { position: absolute; inset: 0; display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; font-size: 34px; line-height: 1; opacity: 0.06; pointer-events: none; overflow: hidden; transform: rotate(-14deg) scale(1.35); z-index: 0; }
         .ticket-body { position: relative; z-index: 1; }
