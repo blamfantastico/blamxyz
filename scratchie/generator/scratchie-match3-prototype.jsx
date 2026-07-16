@@ -104,15 +104,23 @@ function rollOutcome(forceOutcome, nearMissRate) {
 }
 
 function envelope(gameType, themeId, rulesVersion, outcome, content) {
+  return { id: crypto.randomUUID(), version: 1, createdAt: new Date().toISOString(), gameType, rulesVersion, themeId, outcome, content };
+}
+
+function money(v) { return "$" + v.toLocaleString("en-US"); }
+
+// Real tickets often have several independent wins whose prizes SUM. Outcome carries
+// a list of wins (each with the cell indices that form it + its prize) plus the total.
+// A Key Match win also carries keyIdx: the WINNING NUMBER it matched.
+function buildOutcome(out, wins, extra) {
+  const total = wins.reduce((s, w) => s + w.prizeValue, 0);
   return {
-    id: crypto.randomUUID(),
-    version: 1,
-    createdAt: new Date().toISOString(),
-    gameType,
-    rulesVersion,
-    themeId,
-    outcome,
-    content,
+    isWinner: out === "win" && wins.length > 0,
+    nearMiss: out === "near",
+    wins,
+    prizeTotal: total,
+    prizeLabel: wins.length ? money(total) : null,
+    ...(extra || {}),
   };
 }
 
@@ -121,19 +129,24 @@ function generateMatch3(rules, theme, forceOutcome) {
   const pool = SYMBOL_THEMES[theme].symbols.slice(0, 8);
   const out = rollOutcome(forceOutcome, rules.nearMiss.rate);
   const threshold = rules.symbols.matchThreshold;
-  const cells = new Array(rules.grid.cellCount);
+  const N = rules.grid.cellCount;
+  const cells = new Array(N);
+  const wins = [];
   let prizeTier = null;
 
   if (out === "win") {
     const tierRoll = Math.random();
     const matchCount = tierRoll < 0.02 ? 5 : tierRoll < 0.15 ? 4 : 3;
     prizeTier = matchCount >= 5 ? "jackpot" : matchCount >= 4 ? "large" : "small";
+    const tier = rules.prizeTiers.find((t) => t.id === prizeTier);
     const winSymbol = pool[Math.floor(Math.random() * pool.length)];
     const remaining = pool.filter((s) => s !== winSymbol);
-    const positions = shuffle([...Array(rules.grid.cellCount).keys()]);
-    for (let i = 0; i < matchCount; i++) cells[positions[i]] = { symbolId: winSymbol, isWinning: true };
+    const positions = shuffle([...Array(N).keys()]);
+    const winCells = [];
+    for (let i = 0; i < matchCount; i++) { cells[positions[i]] = { symbolId: winSymbol, isWinning: true }; winCells.push(positions[i]); }
+    wins.push({ cells: winCells, prizeValue: tier.value, prizeLabel: tier.label });
     const counts = {};
-    for (let i = matchCount; i < rules.grid.cellCount; i++) {
+    for (let i = matchCount; i < N; i++) {
       let sym, tries = 0;
       do { sym = remaining[Math.floor(Math.random() * remaining.length)]; tries++; }
       while ((counts[sym] || 0) >= threshold - 1 && tries < 50);
@@ -143,10 +156,10 @@ function generateMatch3(rules, theme, forceOutcome) {
   } else if (out === "near") {
     const nearSymbol = pool[Math.floor(Math.random() * pool.length)];
     const remaining = pool.filter((s) => s !== nearSymbol);
-    const positions = shuffle([...Array(rules.grid.cellCount).keys()]);
+    const positions = shuffle([...Array(N).keys()]);
     for (let i = 0; i < threshold - 1; i++) cells[positions[i]] = { symbolId: nearSymbol, isWinning: false };
     const counts = { [nearSymbol]: threshold - 1 };
-    for (let i = threshold - 1; i < rules.grid.cellCount; i++) {
+    for (let i = threshold - 1; i < N; i++) {
       let sym, tries = 0;
       do { sym = remaining[Math.floor(Math.random() * remaining.length)]; tries++; }
       while ((counts[sym] || 0) >= threshold - 1 && tries < 50);
@@ -155,7 +168,7 @@ function generateMatch3(rules, theme, forceOutcome) {
     }
   } else {
     const filled = [];
-    for (let i = 0; i < rules.grid.cellCount; i++) {
+    for (let i = 0; i < N; i++) {
       let sym, tries = 0;
       do { sym = pool[Math.floor(Math.random() * pool.length)]; tries++; }
       while (filled.filter((s) => s === sym).length >= threshold - 1 && tries < 50);
@@ -164,16 +177,8 @@ function generateMatch3(rules, theme, forceOutcome) {
     }
   }
 
-  const tierData = rules.prizeTiers.find((t) => t.id === prizeTier);
-  return envelope("match3", theme, rules.version, {
-    isWinner: out === "win",
-    prizeTier,
-    prizeValue: tierData?.value ?? null,
-    prizeLabel: tierData?.label ?? null,
-    nearMiss: out === "near",
-  }, {
-    gridWidth: rules.grid.width,
-    gridHeight: rules.grid.height,
+  return envelope("match3", theme, rules.version, buildOutcome(out, wins, { prizeTier }), {
+    gridWidth: rules.grid.width, gridHeight: rules.grid.height,
     cells: cells.map((c, i) => ({ position: [Math.floor(i / rules.grid.width), i % rules.grid.width], ...c })),
   });
 }
@@ -186,7 +191,6 @@ function generateKeyMatch(rules, theme, forceOutcome) {
     const n = 1 + Math.floor(Math.random() * rules.numberMax);
     if (!winSet.has(n)) { winSet.add(n); winning.push(n); }
   }
-
   const usedYour = new Set();
   const nonMatching = () => {
     let n, tries = 0;
@@ -194,42 +198,39 @@ function generateKeyMatch(rules, theme, forceOutcome) {
     while ((winSet.has(n) || usedYour.has(n)) && tries < 200);
     return n;
   };
-
   const M = rules.yourCount;
-  const winnerIdx = out === "win" ? Math.floor(Math.random() * M) : -1;
+
+  // A winning ticket can match SEVERAL of your numbers, each paying its own prize
+  // (real "match your numbers" games). Matches use distinct winning numbers.
+  let matchCount = 0;
+  if (out === "win") { const r = Math.random(); matchCount = r < 0.5 ? 1 : r < 0.82 ? 2 : 3; }
+  const matchNums = shuffle([...winning]).slice(0, matchCount);
+  const matchPos = new Map();
+  shuffle([...Array(M).keys()]).slice(0, matchCount).forEach((p, j) => matchPos.set(p, matchNums[j]));
   const nearIdx = out === "near" ? Math.floor(Math.random() * M) : -1;
-  const winPrize = out === "win" ? pickWinPrize() : null;
 
   const yourNumbers = [];
+  const wins = [];
   for (let i = 0; i < M; i++) {
     let number, prize, isWinning = false;
-    if (i === winnerIdx) {
-      number = winning[Math.floor(Math.random() * winning.length)];
-      prize = winPrize;
-      isWinning = true;
+    if (matchPos.has(i)) {
+      number = matchPos.get(i); prize = pickWinPrize(); isWinning = true;
     } else if (i === nearIdx) {
       const base = winning[Math.floor(Math.random() * winning.length)];
       let cand = Math.random() < 0.5 ? base - 1 : base + 1;
       if (cand < 1) cand = base + 1;
       if (cand > rules.numberMax) cand = base - 1;
       number = !winSet.has(cand) && !usedYour.has(cand) ? cand : nonMatching();
-      prize = pickWinPrize(); // a tantalizing high prize you just missed
+      prize = pickWinPrize();
     } else {
-      number = nonMatching();
-      prize = lowPrize();
+      number = nonMatching(); prize = lowPrize();
     }
     usedYour.add(number);
     yourNumbers.push({ number, prizeLabel: prize.label, prizeValue: prize.value, prizeTier: prize.tier, isWinning });
+    if (isWinning) wins.push({ cells: [i], keyIdx: winning.indexOf(number), prizeValue: prize.value, prizeLabel: prize.label });
   }
 
-  const winnerCell = yourNumbers.find((y) => y.isWinning) || null;
-  return envelope("keymatch", theme, rules.version, {
-    isWinner: out === "win",
-    prizeTier: winnerCell?.prizeTier ?? null,
-    prizeValue: winnerCell?.prizeValue ?? null,
-    prizeLabel: winnerCell?.prizeLabel ?? null,
-    nearMiss: out === "near",
-  }, { winningNumbers: winning, yourNumbers });
+  return envelope("keymatch", theme, rules.version, buildOutcome(out, wins), { winningNumbers: winning, yourNumbers });
 }
 
 function generatePrizeMatch(rules, theme, forceOutcome) {
@@ -240,40 +241,36 @@ function generatePrizeMatch(rules, theme, forceOutcome) {
   const cells = new Array(N);
   const positions = shuffle([...Array(N).keys()]);
   const counts = {};
-  let won = null;
+  const wins = [];
+  let pos = 0;
+  const setCell = (p, amt, isWinning) => { cells[p] = { prizeLabel: amt.label, prizeValue: amt.value, prizeTier: amt.tier, isWinning }; counts[amt.label] = (counts[amt.label] || 0) + 1; };
 
-  const setCell = (pos, amt, isWinning) => {
-    cells[pos] = { prizeLabel: amt.label, prizeValue: amt.value, prizeTier: amt.tier, isWinning };
-    counts[amt.label] = (counts[amt.label] || 0) + 1;
-  };
-
-  let start = 0;
   if (out === "win") {
-    won = pickWinPrize();
-    for (let i = 0; i < rules.matchThreshold; i++) setCell(positions[i], won, true);
-    start = rules.matchThreshold;
+    // 1–2 winning trios of DISTINCT amounts, each pays its amount.
+    const numWins = N - pos >= 6 && Math.random() < 0.3 ? 2 : 1;
+    const used = new Set();
+    for (let w = 0; w < numWins; w++) {
+      let amt, tries = 0;
+      do { amt = pickWinPrize(); tries++; } while (used.has(amt.label) && tries < 40);
+      used.add(amt.label);
+      const winCells = [];
+      for (let k = 0; k < rules.matchThreshold; k++) { const p = positions[pos++]; setCell(p, amt, true); winCells.push(p); }
+      wins.push({ cells: winCells, prizeValue: amt.value, prizeLabel: amt.label });
+    }
   } else if (out === "near") {
     const near = pickWinPrize();
-    for (let i = 0; i < cap; i++) setCell(positions[i], near, false);
-    start = cap;
+    for (let k = 0; k < cap; k++) setCell(positions[pos++], near, false);
   }
-  // Fill the rest so no *other* amount reaches the match threshold.
-  for (let i = start; i < N; i++) {
+  // Fill the rest so no *other* amount reaches the threshold.
+  for (; pos < N; pos++) {
     let amt, tries = 0;
     do { amt = amounts[Math.floor(Math.random() * amounts.length)]; tries++; }
     while ((counts[amt.label] || 0) >= cap && tries < 80);
-    setCell(positions[i], amt, false);
+    setCell(positions[pos], amt, false);
   }
 
-  return envelope("prizematch", theme, rules.version, {
-    isWinner: out === "win",
-    prizeTier: won?.tier ?? null,
-    prizeValue: won?.value ?? null,
-    prizeLabel: won?.label ?? null,
-    nearMiss: out === "near",
-  }, {
-    gridWidth: rules.grid.width,
-    gridHeight: rules.grid.height,
+  return envelope("prizematch", theme, rules.version, buildOutcome(out, wins), {
+    gridWidth: rules.grid.width, gridHeight: rules.grid.height,
     cells: cells.map((c, i) => ({ position: [Math.floor(i / rules.grid.width), i % rules.grid.width], ...c })),
   });
 }
@@ -309,29 +306,25 @@ export default function ScratchiePrototype() {
   const keyCount = ticket && ticket.gameType === "keymatch" ? ticket.content.winningNumbers.length : 0;
   const allRevealed = Boolean(ticket && revealed.size === cellCount && (ticket.gameType !== "keymatch" || revealedKeys.size === keyCount));
 
-  // A win is "realized" as soon as the winning combo is uncovered — you don't have to
-  // scratch the whole ticket. For Key Match that means BOTH the matching YOUR number and
-  // the matching WINNING number are revealed. (A loss/near-miss still needs the full
-  // reveal, since you can't rule out a win until everything's shown.)
-  const winningIdxs = ticket ? cellsOf(ticket).flatMap((c, i) => (c.isWinning ? [i] : [])) : [];
-  const isWinRealized = (rev, keys) => {
-    if (!ticket || !ticket.outcome.isWinner) return false;
-    if (ticket.gameType === "keymatch") {
-      const wi = ticket.content.yourNumbers.findIndex((c) => c.isWinning);
-      if (wi < 0 || !rev.has(wi)) return false;
-      const ki = ticket.content.winningNumbers.indexOf(ticket.content.yourNumbers[wi].number);
-      return ki >= 0 && keys.has(ki);
-    }
-    return winningIdxs.length > 0 && winningIdxs.every((i) => rev.has(i));
-  };
-  const winRealized = isWinRealized(revealed, revealedKeys);
+  // Each win realizes independently once all its cells (and, for Key Match, its matching
+  // WINNING number) are scratched. Prizes accumulate into a running total — real tickets
+  // often have several wins, so we never dim or lock the field on the first one; you keep
+  // scratching and the total climbs. Each realized win lights up as you find it.
+  const wins = ticket ? ticket.outcome.wins : [];
+  const winsRealizedIn = (rev, keys) => wins.filter((w) => w.cells.every((i) => rev.has(i)) && (w.keyIdx === undefined || keys.has(w.keyIdx)));
+  const realizedWins = winsRealizedIn(revealed, revealedKeys);
+  const realizedTotal = realizedWins.reduce((s, w) => s + w.prizeValue, 0);
+  const litCells = new Set(realizedWins.flatMap((w) => w.cells));
+  const litKeys = new Set(realizedWins.map((w) => w.keyIdx).filter((k) => k !== undefined));
+  const allWinsRealized = Boolean(ticket && ticket.outcome.isWinner && realizedWins.length === wins.length);
 
   const logHistory = (t) => {
     setHistory((h) => [{ ...t.outcome, id: t.id, gameType: t.gameType, theme: t.themeId }, ...h].slice(0, 20));
   };
   const maybeLog = (rev, keys) => {
     const full = rev.size === cellCount && (ticket.gameType !== "keymatch" || keys.size === keyCount);
-    if ((full || isWinRealized(rev, keys)) && !history.find((h) => h.id === ticket.id)) logHistory(ticket);
+    const done = full || (ticket.outcome.isWinner && winsRealizedIn(rev, keys).length === wins.length);
+    if (done && !history.find((h) => h.id === ticket.id)) logHistory(ticket);
   };
 
   const revealCell = (idx) => {
@@ -350,15 +343,15 @@ export default function ScratchiePrototype() {
     if (!history.find((h) => h.id === ticket.id)) logHistory(ticket);
   };
 
-  const banner = (t) => (
-    <div className={`result-banner ${t.outcome.isWinner ? "result-win" : t.outcome.nearMiss ? "result-near" : "result-loss"}`}>
-      {t.outcome.isWinner
-        ? `🎉 WINNER! ${t.outcome.prizeLabel}`
-        : t.outcome.nearMiss
-        ? "😩 So close! One away..."
-        : "Better luck next time!"}
-    </div>
-  );
+  // Running total while scratching; loss/near-miss confirmed only at full reveal.
+  const banner = () => {
+    if (realizedTotal > 0) {
+      const done = allRevealed || allWinsRealized;
+      return <div className="result-banner result-win">{done ? `🎉 WINNER! ${money(realizedTotal)}` : `💰 Won ${money(realizedTotal)} — keep scratching!`}</div>;
+    }
+    if (ticket.outcome.nearMiss) return <div className="result-banner result-near">😩 So close! One away…</div>;
+    return <div className="result-banner result-loss">Better luck next time!</div>;
+  };
 
   // The ticket keeps the theme it was generated with; the selector drives it otherwise.
   const at = SYMBOL_THEMES[(ticket && ticket.themeId) || theme];
@@ -395,8 +388,6 @@ export default function ScratchiePrototype() {
         .cell-winner { border: 3px solid var(--accent) !important; background: radial-gradient(circle at 50% 38%, var(--glow) 0%, transparent 70%), #0d1b2a; box-shadow: 0 0 16px var(--glow); animation: popIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275), winGlow 1.5s ease-in-out infinite; }
         .cell-num { font-size: 26px; font-weight: 800; line-height: 1; color: #dfe; }
         .cell-winner .cell-num { color: #fff; font-size: 30px; font-weight: 900; text-shadow: 0 0 10px var(--accent), 0 0 22px var(--glow); }
-        .cell-dim { opacity: 0.5; }
-        .cell-dim .cell-num { color: #6b7488; }
         /* WINNING NUMBERS: same scratch-cell language as YOUR NUMBERS, just smaller. Kept
            neutral so they don't hint the outcome; only the matched key lights up on a win. */
         .key-cell { width: 62px; height: 58px; }
@@ -482,10 +473,9 @@ export default function ScratchiePrototype() {
                   <div style={{ display: "grid", gridTemplateColumns: `repeat(${ticket.content.gridWidth}, 80px)`, gap: 8, justifyContent: "center" }}>
                     {ticket.content.cells.map((cell, idx) => {
                       const isRev = revealed.has(idx);
-                      const showWin = isRev && winRealized && cell.isWinning;
-                      const dim = winRealized && isRev && !cell.isWinning;
+                      const showWin = litCells.has(idx);
                       return (
-                        <button key={idx} className={`cell-btn ${isRev ? (showWin ? "cell-winner" : "cell-revealed") : "cell-foil"} ${dim ? "cell-dim" : ""}`} onClick={() => !isRev && revealCell(idx)}>
+                        <button key={idx} className={`cell-btn ${isRev ? (showWin ? "cell-winner" : "cell-revealed") : "cell-foil"}`} onClick={() => !isRev && revealCell(idx)}>
                           {!isRev ? coverArt(idx) : ticket.gameType === "match3" ? cell.symbolId : <span className="cell-amount">{cell.prizeLabel}</span>}
                         </button>
                       );
@@ -498,28 +488,23 @@ export default function ScratchiePrototype() {
                   <div>
                     <div className="section-label">Winning Numbers</div>
                     <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 12 }}>
-                      {(() => {
-                        const wc = ticket.content.yourNumbers.find((c) => c.isWinning);
-                        const winKeyIdx = wc ? ticket.content.winningNumbers.indexOf(wc.number) : -1;
-                        return ticket.content.winningNumbers.map((n, i) => {
-                          const isRev = revealedKeys.has(i);
-                          const isWinnerKey = winRealized && i === winKeyIdx;
-                          return (
-                            <button key={i} className={`cell-btn key-cell ${isRev ? (isWinnerKey ? "cell-winner" : "cell-revealed") : "cell-foil"}`} onClick={() => !isRev && revealKey(i)}>
-                              {isRev ? <span className="cell-num">{n}</span> : <span className="foil-motif">{SYMBOL_THEMES[ticket.themeId].mystery}</span>}
-                            </button>
-                          );
-                        });
-                      })()}
+                      {ticket.content.winningNumbers.map((n, i) => {
+                        const isRev = revealedKeys.has(i);
+                        const isWinnerKey = litKeys.has(i);
+                        return (
+                          <button key={i} className={`cell-btn key-cell ${isRev ? (isWinnerKey ? "cell-winner" : "cell-revealed") : "cell-foil"}`} onClick={() => !isRev && revealKey(i)}>
+                            {isRev ? <span className="cell-num">{n}</span> : <span className="foil-motif">{SYMBOL_THEMES[ticket.themeId].mystery}</span>}
+                          </button>
+                        );
+                      })}
                     </div>
                     <div className="section-label">Your Numbers</div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 80px)", gap: 8, justifyContent: "center" }}>
                       {ticket.content.yourNumbers.map((cell, idx) => {
                         const isRev = revealed.has(idx);
-                        const showWin = isRev && winRealized && cell.isWinning;
-                        const dim = winRealized && isRev && !cell.isWinning;
+                        const showWin = litCells.has(idx);
                         return (
-                          <button key={idx} className={`cell-btn ${isRev ? (showWin ? "cell-winner" : "cell-revealed") : "cell-foil"} ${dim ? "cell-dim" : ""}`} onClick={() => !isRev && revealCell(idx)}>
+                          <button key={idx} className={`cell-btn ${isRev ? (showWin ? "cell-winner" : "cell-revealed") : "cell-foil"}`} onClick={() => !isRev && revealCell(idx)}>
                             {!isRev ? coverArt(idx) : (
                               <>
                                 <span className="cell-num">{cell.number}</span>
@@ -537,7 +522,7 @@ export default function ScratchiePrototype() {
                 {ticket.gameType === "match3" && (
                   <div style={{ marginTop: 14, padding: "8px 12px", background: "rgba(0,0,0,0.2)", borderRadius: 8, fontSize: 11 }}>
                     {MATCH3_RULES.prizeTiers.map((tier) => (
-                      <div key={tier.id} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0", color: (winRealized || allRevealed) && ticket.outcome.prizeTier === tier.id ? "var(--accent)" : "#667" }}>
+                      <div key={tier.id} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0", color: realizedTotal > 0 && ticket.outcome.prizeTier === tier.id ? "var(--accent)" : "#667" }}>
                         <span>{tier.condition}</span>
                         <span style={{ fontWeight: 700 }}>{tier.label}</span>
                       </div>
@@ -548,7 +533,7 @@ export default function ScratchiePrototype() {
                 </div>
               </div>
               {/* Result banner sits BELOW the ticket so the card never changes size */}
-              {(winRealized || allRevealed) && banner(ticket)}
+              {(realizedTotal > 0 || allRevealed) && banner()}
             </div>
 
             {/* Data panel */}
