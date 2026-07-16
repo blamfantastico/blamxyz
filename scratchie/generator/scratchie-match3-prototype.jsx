@@ -95,7 +95,7 @@ function shuffle(arr) {
 }
 
 function rollOutcome(forceOutcome, nearMissRate) {
-  if (forceOutcome === "win") return "win";
+  if (forceOutcome === "win" || forceOutcome === "multi") return "win";
   if (forceOutcome === "near-miss") return "near";
   const r = Math.random();
   if (r < 0.15) return "win";
@@ -203,7 +203,10 @@ function generateKeyMatch(rules, theme, forceOutcome) {
   // A winning ticket can match SEVERAL of your numbers, each paying its own prize
   // (real "match your numbers" games). Matches use distinct winning numbers.
   let matchCount = 0;
-  if (out === "win") { const r = Math.random(); matchCount = r < 0.5 ? 1 : r < 0.82 ? 2 : 3; }
+  if (out === "win") {
+    if (forceOutcome === "multi") matchCount = Math.random() < 0.5 ? 2 : 3;
+    else { const r = Math.random(); matchCount = r < 0.5 ? 1 : r < 0.82 ? 2 : 3; }
+  }
   const matchNums = shuffle([...winning]).slice(0, matchCount);
   const matchPos = new Map();
   shuffle([...Array(M).keys()]).slice(0, matchCount).forEach((p, j) => matchPos.set(p, matchNums[j]));
@@ -247,7 +250,7 @@ function generatePrizeMatch(rules, theme, forceOutcome) {
 
   if (out === "win") {
     // 1–2 winning trios of DISTINCT amounts, each pays its amount.
-    const numWins = N - pos >= 6 && Math.random() < 0.3 ? 2 : 1;
+    const numWins = N - pos >= 6 && (forceOutcome === "multi" || Math.random() < 0.3) ? 2 : 1;
     const used = new Set();
     for (let w = 0; w < numWins; w++) {
       let amt, tries = 0;
@@ -317,6 +320,8 @@ export default function ScratchiePrototype() {
   const litCells = new Set(realizedWins.flatMap((w) => w.cells));
   const litKeys = new Set(realizedWins.map((w) => w.keyIdx).filter((k) => k !== undefined));
   const allWinsRealized = Boolean(ticket && ticket.outcome.isWinner && realizedWins.length === wins.length);
+  // Only fade the losers once EVERYTHING is uncovered, and only when there's a win to spotlight.
+  const fadeLosers = allRevealed && realizedTotal > 0;
 
   const logHistory = (t) => {
     setHistory((h) => [{ ...t.outcome, id: t.id, gameType: t.gameType, theme: t.themeId }, ...h].slice(0, 20));
@@ -343,11 +348,13 @@ export default function ScratchiePrototype() {
     if (!history.find((h) => h.id === ticket.id)) logHistory(ticket);
   };
 
-  // Running total while scratching; loss/near-miss confirmed only at full reveal.
+  // Running total while scratching; loss/near-miss confirmed only at full reveal. Once the
+  // whole ticket is uncovered (allRevealed) the banner re-pops/pulses one more time — the
+  // changing `key` remounts it so the CSS animation replays — while the losers fade back.
   const banner = () => {
     if (realizedTotal > 0) {
       const done = allRevealed || allWinsRealized;
-      return <div className="result-banner result-win">{done ? `🎉 WINNER! ${money(realizedTotal)}` : `💰 Won ${money(realizedTotal)} — keep scratching!`}</div>;
+      return <div key={allRevealed ? "final" : "run"} className={`result-banner result-win${allRevealed ? " result-final" : ""}`}>{done ? `🎉 WINNER! ${money(realizedTotal)}` : `💰 Won ${money(realizedTotal)} — keep scratching!`}</div>;
     }
     if (ticket.outcome.nearMiss) return <div className="result-banner result-near">😩 So close! One away…</div>;
     return <div className="result-banner result-loss">Better luck next time!</div>;
@@ -388,6 +395,8 @@ export default function ScratchiePrototype() {
         .cell-winner { border: 3px solid var(--accent) !important; background: radial-gradient(circle at 50% 38%, var(--glow) 0%, transparent 70%), #0d1b2a; box-shadow: 0 0 16px var(--glow); animation: popIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275), winGlow 1.5s ease-in-out infinite; }
         .cell-num { font-size: 26px; font-weight: 800; line-height: 1; color: #dfe; }
         .cell-winner .cell-num { color: #fff; font-size: 30px; font-weight: 900; text-shadow: 0 0 10px var(--accent), 0 0 22px var(--glow); }
+        /* Once the whole ticket is uncovered, the losing cells fade back to spotlight the wins. */
+        .cell-faded { opacity: 0.28; filter: saturate(0.5) brightness(0.82); transition: opacity 0.55s ease, filter 0.55s ease; }
         /* WINNING NUMBERS: same scratch-cell language as YOUR NUMBERS, just smaller. Kept
            neutral so they don't hint the outcome; only the matched key lights up on a win. */
         .key-cell { width: 62px; height: 58px; }
@@ -395,6 +404,8 @@ export default function ScratchiePrototype() {
         .cell-amount { font-size: 20px; font-weight: 800; color: #ffe08a; }
         @keyframes popIn { 0% { transform: scale(0.7); opacity: 0.5; } 100% { transform: scale(1); opacity: 1; } }
         @keyframes winGlow { 0%,100% { box-shadow: 0 0 12px var(--glow);} 50% { box-shadow: 0 0 24px var(--glow);} }
+        @keyframes bannerPop { 0% { transform: scale(0.85); } 45% { transform: scale(1.13); } 72% { transform: scale(0.98); } 100% { transform: scale(1); } }
+        @keyframes bannerPulse { 0%,100% { box-shadow: 0 0 0 rgba(0,0,0,0); } 50% { box-shadow: 0 0 26px var(--glow); } }
         .ctrl-btn { padding: 8px 16px; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s ease; border: 2px solid; }
         .ctrl-primary { background: var(--accent); color: #1a1a2e; border-color: var(--accent); }
         .ctrl-primary:hover { background: var(--accent); filter: brightness(1.12); transform: translateY(-1px); }
@@ -406,6 +417,7 @@ export default function ScratchiePrototype() {
         .theme-active { border-color: var(--accent); color: var(--accent); background: rgba(255,215,0,0.1); }
         .result-banner { text-align: center; padding: 12px; border-radius: 10px; margin: 12px auto 0; max-width: 340px; font-weight: 700; font-size: 15px; animation: popIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275); }
         .result-win { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,140,0,0.2)); border: 2px solid var(--accent); color: var(--accent); }
+        .result-final { animation: bannerPop 0.55s cubic-bezier(0.175,0.885,0.32,1.275), bannerPulse 1.3s ease-in-out 0.55s 2; }
         .result-near { background: rgba(255,100,100,0.1); border: 2px solid #664; color: #cc8844; }
         .result-loss { background: rgba(100,100,150,0.1); border: 2px solid #334; color: #666; }
         .data-panel { background: #0d1b2a; border: 1px solid #1a2a4a; border-radius: 10px; padding: 14px; font-size: 11px; line-height: 1.6; max-height: 460px; overflow-y: auto; }
@@ -427,7 +439,7 @@ export default function ScratchiePrototype() {
         <div className="section-label" style={{ margin: "0 0 4px" }}>Game</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", marginBottom: 12 }}>
           {GAMES.map((g) => (
-            <button key={g.id} className={`theme-chip ${gameType === g.id ? "theme-active" : ""}`} onClick={() => { setGameType(g.id); setTicket(null); }}>
+            <button key={g.id} className={`theme-chip ${gameType === g.id ? "theme-active" : ""}`} onClick={() => { setGameType(g.id); setTicket(null); if (g.id === "match3" && forceOutcome === "multi") setForceOutcome("win"); }}>
               {g.icon} {g.label}
             </button>
           ))}
@@ -448,6 +460,7 @@ export default function ScratchiePrototype() {
           <button className="ctrl-btn ctrl-primary" onClick={generateTicket}>Generate Ticket</button>
           <button className={`ctrl-btn ${forceOutcome === "win" ? "ctrl-active" : "ctrl-secondary"}`} onClick={() => setForceOutcome(forceOutcome === "win" ? null : "win")}>Force Win</button>
           <button className={`ctrl-btn ${forceOutcome === "near-miss" ? "ctrl-active" : "ctrl-secondary"}`} onClick={() => setForceOutcome(forceOutcome === "near-miss" ? null : "near-miss")}>Force Near-Miss</button>
+          {gameType !== "match3" && <button className={`ctrl-btn ${forceOutcome === "multi" ? "ctrl-active" : "ctrl-secondary"}`} onClick={() => setForceOutcome(forceOutcome === "multi" ? null : "multi")}>Force Multi-Win</button>}
           {ticket && !allRevealed && <button className="ctrl-btn ctrl-secondary" onClick={revealAll}>Reveal All</button>}
         </div>
 
@@ -474,8 +487,9 @@ export default function ScratchiePrototype() {
                     {ticket.content.cells.map((cell, idx) => {
                       const isRev = revealed.has(idx);
                       const showWin = litCells.has(idx);
+                      const faded = fadeLosers && !showWin;
                       return (
-                        <button key={idx} className={`cell-btn ${isRev ? (showWin ? "cell-winner" : "cell-revealed") : "cell-foil"}`} onClick={() => !isRev && revealCell(idx)}>
+                        <button key={idx} className={`cell-btn ${isRev ? (showWin ? "cell-winner" : "cell-revealed") : "cell-foil"} ${faded ? "cell-faded" : ""}`} onClick={() => !isRev && revealCell(idx)}>
                           {!isRev ? coverArt(idx) : ticket.gameType === "match3" ? cell.symbolId : <span className="cell-amount">{cell.prizeLabel}</span>}
                         </button>
                       );
@@ -491,8 +505,9 @@ export default function ScratchiePrototype() {
                       {ticket.content.winningNumbers.map((n, i) => {
                         const isRev = revealedKeys.has(i);
                         const isWinnerKey = litKeys.has(i);
+                        const faded = fadeLosers && !isWinnerKey;
                         return (
-                          <button key={i} className={`cell-btn key-cell ${isRev ? (isWinnerKey ? "cell-winner" : "cell-revealed") : "cell-foil"}`} onClick={() => !isRev && revealKey(i)}>
+                          <button key={i} className={`cell-btn key-cell ${isRev ? (isWinnerKey ? "cell-winner" : "cell-revealed") : "cell-foil"} ${faded ? "cell-faded" : ""}`} onClick={() => !isRev && revealKey(i)}>
                             {isRev ? <span className="cell-num">{n}</span> : <span className="foil-motif">{SYMBOL_THEMES[ticket.themeId].mystery}</span>}
                           </button>
                         );
@@ -503,8 +518,9 @@ export default function ScratchiePrototype() {
                       {ticket.content.yourNumbers.map((cell, idx) => {
                         const isRev = revealed.has(idx);
                         const showWin = litCells.has(idx);
+                        const faded = fadeLosers && !showWin;
                         return (
-                          <button key={idx} className={`cell-btn ${isRev ? (showWin ? "cell-winner" : "cell-revealed") : "cell-foil"}`} onClick={() => !isRev && revealCell(idx)}>
+                          <button key={idx} className={`cell-btn ${isRev ? (showWin ? "cell-winner" : "cell-revealed") : "cell-foil"} ${faded ? "cell-faded" : ""}`} onClick={() => !isRev && revealCell(idx)}>
                             {!isRev ? coverArt(idx) : (
                               <>
                                 <span className="cell-num">{cell.number}</span>
