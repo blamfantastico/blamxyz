@@ -395,8 +395,10 @@ export default function ScratchiePrototype() {
         .cell-winner { border: 3px solid var(--accent) !important; background: radial-gradient(circle at 50% 38%, var(--glow) 0%, transparent 70%), #0d1b2a; box-shadow: 0 0 16px var(--glow); animation: popIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275), winGlow 1.5s ease-in-out infinite; }
         .cell-num { font-size: 26px; font-weight: 800; line-height: 1; color: #dfe; }
         .cell-winner .cell-num { color: #fff; font-size: 30px; font-weight: 900; text-shadow: 0 0 10px var(--accent), 0 0 22px var(--glow); }
-        /* Once the whole ticket is uncovered, the losing cells fade back to spotlight the wins. */
-        .cell-faded { opacity: 0.28; filter: saturate(0.5) brightness(0.82); transition: opacity 0.55s ease, filter 0.55s ease; }
+        /* Once the whole ticket is uncovered, the losing cells fade back to spotlight the wins.
+           A keyframe (not a transition) so it animates smoothly even when the cell mounts
+           straight into the faded state — e.g. Reveal All, where reveal + settle land together. */
+        .cell-faded { opacity: 0.28; filter: saturate(0.5) brightness(0.82); animation: loserFade 0.6s ease forwards; }
         /* WINNING NUMBERS: same scratch-cell language as YOUR NUMBERS, just smaller. Kept
            neutral so they don't hint the outcome; only the matched key lights up on a win. */
         .key-cell { width: 62px; height: 58px; }
@@ -404,6 +406,7 @@ export default function ScratchiePrototype() {
         .cell-amount { font-size: 20px; font-weight: 800; color: #ffe08a; }
         @keyframes popIn { 0% { transform: scale(0.7); opacity: 0.5; } 100% { transform: scale(1); opacity: 1; } }
         @keyframes winGlow { 0%,100% { box-shadow: 0 0 12px var(--glow);} 50% { box-shadow: 0 0 24px var(--glow);} }
+        @keyframes loserFade { from { opacity: 1; filter: saturate(1) brightness(1); } to { opacity: 0.28; filter: saturate(0.5) brightness(0.82); } }
         @keyframes bannerPop { 0% { transform: scale(0.85); } 45% { transform: scale(1.13); } 72% { transform: scale(0.98); } 100% { transform: scale(1); } }
         @keyframes bannerPulse { 0%,100% { box-shadow: 0 0 0 rgba(0,0,0,0); } 50% { box-shadow: 0 0 26px var(--glow); } }
         .ctrl-btn { padding: 8px 16px; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s ease; border: 2px solid; }
@@ -417,7 +420,7 @@ export default function ScratchiePrototype() {
         .theme-active { border-color: var(--accent); color: var(--accent); background: rgba(255,215,0,0.1); }
         .result-banner { text-align: center; padding: 12px; border-radius: 10px; margin: 12px auto 0; max-width: 340px; font-weight: 700; font-size: 15px; animation: popIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275); }
         .result-win { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,140,0,0.2)); border: 2px solid var(--accent); color: var(--accent); }
-        .result-final { animation: bannerPop 0.55s cubic-bezier(0.175,0.885,0.32,1.275), bannerPulse 1.3s ease-in-out 0.55s 2; }
+        .result-final { animation: bannerPop 0.55s cubic-bezier(0.175,0.885,0.32,1.275) 0.3s both, bannerPulse 1.3s ease-in-out 0.85s 2; }
         .result-near { background: rgba(255,100,100,0.1); border: 2px solid #664; color: #cc8844; }
         .result-loss { background: rgba(100,100,150,0.1); border: 2px solid #334; color: #666; }
         .data-panel { background: #0d1b2a; border: 1px solid #1a2a4a; border-radius: 10px; padding: 14px; font-size: 11px; line-height: 1.6; max-height: 460px; overflow-y: auto; }
