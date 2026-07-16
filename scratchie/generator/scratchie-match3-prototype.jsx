@@ -10,6 +10,12 @@ const PRIZE_POOL = [
   { label: "$500", value: 500, tier: "jackpot" },
   { label: "$1,000", value: 1000, tier: "jackpot" },
 ];
+// One fixed hue per prize amount so multiple simultaneous "one-away" pairs are told apart —
+// each amount always teases in its own colour, and both cells of a pair match. Distinct from
+// the per-theme win accent (pairs are outline-only, wins are filled) and from each other.
+const PAIR_HUES = ["#40c4ff", "#ffd54f", "#ff8a80", "#64ffda", "#ff80ab", "#e040fb", "#ffab40"];
+const PAIR_COLOR = {};
+PRIZE_POOL.forEach((p, i) => { PAIR_COLOR[p.label] = PAIR_HUES[i % PAIR_HUES.length]; });
 
 function pickWinPrize() {
   const r = Math.random();
@@ -528,8 +534,11 @@ export default function ScratchiePrototype() {
                       // reveal a lingering (non-win) pair stops breathing via cell-pair-rest.
                       const pair = isRev && !showWin && !faded && pairCells.has(idx);
                       const state = !isRev ? "cell-foil" : showWin ? "cell-winner" : pair ? (allRevealed ? "cell-pair cell-pair-rest" : "cell-pair") : "cell-revealed";
+                      // Per-amount hue: override --accent2 on this cell so its .cell-pair styling
+                      // (and pairPulse) picks up the amount's colour, distinguishing pairs.
+                      const pairStyle = pair ? { "--accent2": PAIR_COLOR[cell.prizeLabel] } : undefined;
                       return (
-                        <button key={idx} className={`cell-btn ${state} ${faded ? "cell-faded" : ""}`} onClick={() => !isRev && revealCell(idx)}>
+                        <button key={idx} style={pairStyle} className={`cell-btn ${state} ${faded ? "cell-faded" : ""}`} onClick={() => !isRev && revealCell(idx)}>
                           {!isRev ? coverArt(idx) : ticket.gameType === "match3" ? cell.symbolId : <span className="cell-amount">{cell.prizeLabel}</span>}
                         </button>
                       );
