@@ -13,7 +13,7 @@ const PRIZE_POOL = [
 // One fixed hue per prize amount so multiple simultaneous "one-away" pairs are told apart —
 // each amount always teases in its own colour, and both cells of a pair match. Distinct from
 // the per-theme win accent (pairs are outline-only, wins are filled) and from each other.
-const PAIR_HUES = ["#40c4ff", "#ffd54f", "#ff8a80", "#64ffda", "#ff80ab", "#e040fb", "#ffab40"];
+const PAIR_HUES = ["#40c4ff", "#ffd54f", "#ff8a80", "#64ffda", "#ff80ab", "#e040fb", "#ffab40", "#b2ff59"];
 const PAIR_COLOR = {};
 PRIZE_POOL.forEach((p, i) => { PAIR_COLOR[p.label] = PAIR_HUES[i % PAIR_HUES.length]; });
 
@@ -328,16 +328,18 @@ export default function ScratchiePrototype() {
   // Only fade the losers once EVERYTHING is uncovered, and only when there's a win to spotlight.
   const fadeLosers = allRevealed && realizedTotal > 0;
 
-  // Prize Match tension: any amount showing exactly TWO revealed cells (one shy of a trio)
-  // gets a "one-away" highlight. Derived purely from revealed cells, NEVER from the win data —
-  // non-winning amounts legitimately appear twice, so a pair is genuinely ambiguous. It teases
-  // without lying: a glowing pair might complete into a win, or might be a dead end.
+  // One-away tension (Prize Match trios & Match-3 symbols): any value showing exactly TWO
+  // revealed cells — one shy of the threshold — gets a "one-away" highlight. Derived purely
+  // from revealed cells, NEVER from the win data: non-winners also legitimately appear twice,
+  // so a pair is genuinely ambiguous. It teases without lying — the pair might complete, or
+  // might be a dead end. Prize Match keys on the amount; Match-3 keys on the symbol.
   const pairCells = new Set();
-  if (ticket && ticket.gameType === "prizematch") {
+  if (ticket && (ticket.gameType === "prizematch" || ticket.gameType === "match3")) {
+    const keyOf = ticket.gameType === "match3" ? (c) => c.symbolId : (c) => c.prizeLabel;
     const groups = {};
-    ticket.content.cells.forEach((c, i) => { if (revealed.has(i)) (groups[c.prizeLabel] = groups[c.prizeLabel] || []).push(i); });
-    Object.keys(groups).forEach((label) => {
-      const g = groups[label];
+    ticket.content.cells.forEach((c, i) => { if (revealed.has(i)) { const k = keyOf(c); (groups[k] = groups[k] || []).push(i); } });
+    Object.keys(groups).forEach((k) => {
+      const g = groups[k];
       if (g.length === 2) g.forEach((i) => { if (!litCells.has(i)) pairCells.add(i); });
     });
   }
@@ -540,9 +542,13 @@ export default function ScratchiePrototype() {
                       // At full reveal (officially over) a lingering pair settles via cell-pair-rest:
                       // brightness fades down to normal but the hue stays, marking it as a near miss.
                       const state = !isRev ? "cell-foil" : showWin ? "cell-winner" : pair ? (allRevealed ? "cell-pair cell-pair-rest" : "cell-pair") : "cell-revealed";
-                      // Per-amount hue: override --accent2 on this cell so its .cell-pair styling
-                      // (and pairPulse) picks up the amount's colour, distinguishing pairs.
-                      const pairStyle = pair ? { "--accent2": PAIR_COLOR[cell.prizeLabel] } : undefined;
+                      // Per-value hue: override --accent2 on this cell so its .cell-pair styling
+                      // (and pairPulse) picks up the value's colour, distinguishing pairs. Prize
+                      // Match keys on the amount; Match-3 on the symbol's slot in the theme set.
+                      const pairColor = !pair ? null : ticket.gameType === "match3"
+                        ? PAIR_HUES[Math.max(0, at.symbols.indexOf(cell.symbolId)) % PAIR_HUES.length]
+                        : PAIR_COLOR[cell.prizeLabel];
+                      const pairStyle = pairColor ? { "--accent2": pairColor } : undefined;
                       return (
                         <button key={idx} style={pairStyle} className={`cell-btn ${state} ${faded ? "cell-faded" : ""}`} onClick={() => !isRev && revealCell(idx)}>
                           {!isRev ? coverArt(idx) : ticket.gameType === "match3" ? cell.symbolId : <span className="cell-amount">{cell.prizeLabel}</span>}
