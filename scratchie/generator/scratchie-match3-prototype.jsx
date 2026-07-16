@@ -425,8 +425,8 @@ export default function ScratchiePrototype() {
            Deliberately NOT the win — a ring of potential, versus the win's fill + bloom. */
         .cell-pair { border: 2.5px solid var(--accent2); background: #0d1b2a; box-shadow: inset 0 0 5px -4px var(--accent2); animation: popIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275), pairPulse 1.8s ease-in-out infinite; }
         .cell-pair .cell-amount { color: var(--accent2); text-shadow: 0 0 3px var(--accent2); }
-        /* Officially over: a lingering miss-pair fades its brightness down to normal — glow off,
-           outline calmed toward the base border — but keeps its hue, still marking the near miss. */
+        /* Officially over: a lingering miss-pair settles down — glow off and the border fades
+           back to the normal grey; only the number keeps its hue, still marking the near miss. */
         .cell-pair-rest { animation: pairSettle 0.55s ease forwards; }
         .cell-pair-rest .cell-amount { text-shadow: none; }
         /* Once the whole ticket is uncovered, the losing cells fade back to spotlight the wins.
@@ -442,7 +442,7 @@ export default function ScratchiePrototype() {
         @keyframes winGlow { 0%,100% { box-shadow: 0 0 12px var(--glow);} 50% { box-shadow: 0 0 24px var(--glow);} }
         @keyframes loserFade { from { opacity: 1; filter: saturate(1) brightness(1); } to { opacity: 0.28; filter: saturate(0.5) brightness(0.82); } }
         @keyframes pairPulse { 0%,100% { box-shadow: inset 0 0 4px -4px var(--accent2); } 50% { box-shadow: inset 0 0 7px -3px var(--accent2), 0 0 4px -4px var(--accent2); } }
-        @keyframes pairSettle { from { border-color: var(--accent2); box-shadow: inset 0 0 5px -4px var(--accent2); } to { border-color: color-mix(in srgb, var(--accent2) 55%, #3a3a4a); box-shadow: none; } }
+        @keyframes pairSettle { from { border-color: var(--accent2); box-shadow: inset 0 0 5px -4px var(--accent2); } to { border-color: #334; box-shadow: none; } }
         /* Pulse UP from rest (scale 1), not up from a shrink — the banner is already on
            screen showing the running total, so it re-pops in place. Starting at scale 1 also
            means the backwards-fill (both) during the 0.3s delay holds it at its resting size
