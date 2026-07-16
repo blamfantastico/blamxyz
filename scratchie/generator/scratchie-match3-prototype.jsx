@@ -77,11 +77,11 @@ const RULES_BY_TYPE = { match3: MATCH3_RULES, keymatch: KEYMATCH_RULES, prizemat
 //   symbols              -> symbol art  +  foil-cover motifs  +  background watermark
 // `symbols` is a SET (not one icon) so covers and watermarks have variety across cells.
 const SYMBOL_THEMES = {
-  fruit: { name: "Fruit Frenzy", icon: "🍒", accent: "#ff6b6b", accent2: "#ffa94d", glow: "rgba(255,107,107,0.45)", symbols: ["🍒", "🍋", "🍊", "🍇", "🍉", "🍓", "🫐", "🍑"] },
-  gems: { name: "Gem Rush", icon: "💎", accent: "#b388ff", accent2: "#00e5ff", glow: "rgba(179,136,255,0.45)", symbols: ["💎", "💍", "👑", "🔮", "⭐", "🌟", "💫", "✨"] },
-  ocean: { name: "Ocean Treasure", icon: "🌊", accent: "#4dd0e1", accent2: "#0288d1", glow: "rgba(77,208,225,0.45)", symbols: ["🐚", "🦀", "🐙", "🐠", "🦈", "🐋", "🪸", "🦞"] },
-  space: { name: "Cosmic Cash", icon: "🚀", accent: "#b39ddb", accent2: "#ff8a80", glow: "rgba(179,157,219,0.45)", symbols: ["🚀", "🛸", "🌍", "🌙", "☄️", "🪐", "👽", "🌌"] },
-  retro: { name: "Arcade Jackpot", icon: "👾", accent: "#69f0ae", accent2: "#ff4081", glow: "rgba(255,64,129,0.45)", symbols: ["👾", "🕹️", "🎮", "🎰", "🃏", "🎲", "🎯", "🏆"] },
+  fruit: { name: "Fruit Frenzy", icon: "🍒", mystery: "🎁", accent: "#ff6b6b", accent2: "#ffa94d", glow: "rgba(255,107,107,0.45)", symbols: ["🍒", "🍋", "🍊", "🍇", "🍉", "🍓", "🫐", "🍑"] },
+  gems: { name: "Gem Rush", icon: "💎", mystery: "🔮", accent: "#b388ff", accent2: "#00e5ff", glow: "rgba(179,136,255,0.45)", symbols: ["💎", "💍", "👑", "🔮", "⭐", "🌟", "💫", "✨"] },
+  ocean: { name: "Ocean Treasure", icon: "🌊", mystery: "🐚", accent: "#4dd0e1", accent2: "#0288d1", glow: "rgba(77,208,225,0.45)", symbols: ["🐚", "🦀", "🐙", "🐠", "🦈", "🐋", "🪸", "🦞"] },
+  space: { name: "Cosmic Cash", icon: "🚀", mystery: "🌌", accent: "#b39ddb", accent2: "#ff8a80", glow: "rgba(179,157,219,0.45)", symbols: ["🚀", "🛸", "🌍", "🌙", "☄️", "🪐", "👽", "🌌"] },
+  retro: { name: "Arcade Jackpot", icon: "👾", mystery: "🎰", accent: "#69f0ae", accent2: "#ff4081", glow: "rgba(255,64,129,0.45)", symbols: ["👾", "🕹️", "🎮", "🎰", "🃏", "🎲", "🎯", "🏆"] },
 };
 
 // --- Helpers ---
@@ -397,8 +397,9 @@ export default function ScratchiePrototype() {
         .cell-winner .cell-num { color: #fff; font-size: 30px; font-weight: 900; text-shadow: 0 0 10px var(--accent), 0 0 22px var(--glow); }
         .cell-dim { opacity: 0.5; }
         .cell-dim .cell-num { color: #6b7488; }
-        /* WINNING NUMBERS: same scratch-cell language as YOUR NUMBERS, marked as the "key" set with an accent border/glow. */
-        .key-cell { width: 62px; height: 58px; border: 2px solid var(--accent) !important; box-shadow: 0 0 10px var(--glow); }
+        /* WINNING NUMBERS: same scratch-cell language as YOUR NUMBERS, just smaller. Kept
+           neutral so they don't hint the outcome; only the matched key lights up on a win. */
+        .key-cell { width: 62px; height: 58px; }
         .cell-prize { font-size: 12px; color: #b9b96a; margin-top: 3px; }
         .cell-amount { font-size: 20px; font-weight: 800; color: #ffe08a; }
         @keyframes popIn { 0% { transform: scale(0.7); opacity: 0.5; } 100% { transform: scale(1); opacity: 1; } }
@@ -497,14 +498,19 @@ export default function ScratchiePrototype() {
                   <div>
                     <div className="section-label">Winning Numbers</div>
                     <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 12 }}>
-                      {ticket.content.winningNumbers.map((n, i) => {
-                        const isRev = revealedKeys.has(i);
-                        return (
-                          <button key={i} className={`cell-btn key-cell ${isRev ? "cell-revealed" : "cell-foil"}`} onClick={() => !isRev && revealKey(i)}>
-                            {isRev ? <span className="cell-num">{n}</span> : coverArt(i)}
-                          </button>
-                        );
-                      })}
+                      {(() => {
+                        const wc = ticket.content.yourNumbers.find((c) => c.isWinning);
+                        const winKeyIdx = wc ? ticket.content.winningNumbers.indexOf(wc.number) : -1;
+                        return ticket.content.winningNumbers.map((n, i) => {
+                          const isRev = revealedKeys.has(i);
+                          const isWinnerKey = winRealized && i === winKeyIdx;
+                          return (
+                            <button key={i} className={`cell-btn key-cell ${isRev ? (isWinnerKey ? "cell-winner" : "cell-revealed") : "cell-foil"}`} onClick={() => !isRev && revealKey(i)}>
+                              {isRev ? <span className="cell-num">{n}</span> : <span className="foil-motif">{SYMBOL_THEMES[ticket.themeId].mystery}</span>}
+                            </button>
+                          );
+                        });
+                      })()}
                     </div>
                     <div className="section-label">Your Numbers</div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 80px)", gap: 8, justifyContent: "center" }}>
