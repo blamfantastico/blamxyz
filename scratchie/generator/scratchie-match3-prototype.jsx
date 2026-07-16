@@ -319,7 +319,6 @@ export default function ScratchiePrototype() {
   const realizedTotal = realizedWins.reduce((s, w) => s + w.prizeValue, 0);
   const litCells = new Set(realizedWins.flatMap((w) => w.cells));
   const litKeys = new Set(realizedWins.map((w) => w.keyIdx).filter((k) => k !== undefined));
-  const allWinsRealized = Boolean(ticket && ticket.outcome.isWinner && realizedWins.length === wins.length);
   // Only fade the losers once EVERYTHING is uncovered, and only when there's a win to spotlight.
   const fadeLosers = allRevealed && realizedTotal > 0;
 
@@ -348,13 +347,14 @@ export default function ScratchiePrototype() {
     if (!history.find((h) => h.id === ticket.id)) logHistory(ticket);
   };
 
-  // Running total while scratching; loss/near-miss confirmed only at full reveal. Once the
-  // whole ticket is uncovered (allRevealed) the banner re-pops/pulses one more time — the
-  // changing `key` remounts it so the CSS animation replays — while the losers fade back.
+  // Running total while scratching — "keep scratching" stays up on ANY winning ticket
+  // (single- or multi-win) until the WHOLE ticket is uncovered, so the player never knows
+  // whether more wins are hiding. Only at full reveal does it settle to "WINNER!": the
+  // banner re-pops/pulses (a changing `key` remounts it so the CSS animation replays) and
+  // the losers fade back. Loss/near-miss is likewise only confirmed at full reveal.
   const banner = () => {
     if (realizedTotal > 0) {
-      const done = allRevealed || allWinsRealized;
-      return <div key={allRevealed ? "final" : "run"} className={`result-banner result-win${allRevealed ? " result-final" : ""}`}>{done ? `🎉 WINNER! ${money(realizedTotal)}` : `💰 Won ${money(realizedTotal)} — keep scratching!`}</div>;
+      return <div key={allRevealed ? "final" : "run"} className={`result-banner result-win${allRevealed ? " result-final" : ""}`}>{allRevealed ? `🎉 WINNER! ${money(realizedTotal)}` : `💰 Won ${money(realizedTotal)} — keep scratching!`}</div>;
     }
     if (ticket.outcome.nearMiss) return <div className="result-banner result-near">😩 So close! One away…</div>;
     return <div className="result-banner result-loss">Better luck next time!</div>;
