@@ -322,6 +322,20 @@ export default function ScratchiePrototype() {
   // Only fade the losers once EVERYTHING is uncovered, and only when there's a win to spotlight.
   const fadeLosers = allRevealed && realizedTotal > 0;
 
+  // Prize Match tension: any amount showing exactly TWO revealed cells (one shy of a trio)
+  // gets a "one-away" highlight. Derived purely from revealed cells, NEVER from the win data —
+  // non-winning amounts legitimately appear twice, so a pair is genuinely ambiguous. It teases
+  // without lying: a glowing pair might complete into a win, or might be a dead end.
+  const pairCells = new Set();
+  if (ticket && ticket.gameType === "prizematch") {
+    const groups = {};
+    ticket.content.cells.forEach((c, i) => { if (revealed.has(i)) (groups[c.prizeLabel] = groups[c.prizeLabel] || []).push(i); });
+    Object.keys(groups).forEach((label) => {
+      const g = groups[label];
+      if (g.length === 2) g.forEach((i) => { if (!litCells.has(i)) pairCells.add(i); });
+    });
+  }
+
   const logHistory = (t) => {
     setHistory((h) => [{ ...t.outcome, id: t.id, gameType: t.gameType, theme: t.themeId }, ...h].slice(0, 20));
   };
@@ -354,7 +368,11 @@ export default function ScratchiePrototype() {
   // the losers fade back. Loss/near-miss is likewise only confirmed at full reveal.
   const banner = () => {
     if (realizedTotal > 0) {
-      return <div key={allRevealed ? "final" : "run"} className={`result-banner result-win${allRevealed ? " result-final" : ""}`}>{allRevealed ? `🎉 WINNER! ${money(realizedTotal)}` : `💰 Won ${money(realizedTotal)} — keep scratching!`}</div>;
+      // Keying the running banner on the realized-win COUNT remounts it every time a new win
+      // lands, so it re-pops as the total climbs (a multi-win ticket bumps on each match).
+      const key = allRevealed ? "final" : `run-${realizedWins.length}`;
+      const cls = `result-banner result-win ${allRevealed ? "result-final" : "result-bump"}`;
+      return <div key={key} className={cls}>{allRevealed ? `🎉 WINNER! ${money(realizedTotal)}` : `💰 Won ${money(realizedTotal)} — keep scratching!`}</div>;
     }
     if (ticket.outcome.nearMiss) return <div className="result-banner result-near">😩 So close! One away…</div>;
     return <div className="result-banner result-loss">Better luck next time!</div>;
@@ -395,6 +413,13 @@ export default function ScratchiePrototype() {
         .cell-winner { border: 3px solid var(--accent) !important; background: radial-gradient(circle at 50% 38%, var(--glow) 0%, transparent 70%), #0d1b2a; box-shadow: 0 0 16px var(--glow); animation: popIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275), winGlow 1.5s ease-in-out infinite; }
         .cell-num { font-size: 26px; font-weight: 800; line-height: 1; color: #dfe; }
         .cell-winner .cell-num { color: #fff; font-size: 30px; font-weight: 900; text-shadow: 0 0 10px var(--accent), 0 0 22px var(--glow); }
+        /* Prize Match amounts glow white on a win too (they render as .cell-amount, not .cell-num). */
+        .cell-winner .cell-amount { color: #fff; font-size: 22px; font-weight: 900; text-shadow: 0 0 10px var(--accent), 0 0 22px var(--glow); }
+        /* One-away: outline-only in the theme's SECONDARY hue + a soft breathing inner glow.
+           Deliberately NOT the win — a ring of potential, versus the win's fill + bloom. */
+        .cell-pair { border: 2.5px solid var(--accent2) !important; background: #0d1b2a; box-shadow: inset 0 0 9px -3px var(--accent2); animation: popIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275), pairPulse 1.8s ease-in-out infinite; }
+        .cell-pair .cell-amount { color: var(--accent2); text-shadow: 0 0 7px var(--accent2); }
+        .cell-pair-rest { animation: none; } /* settled at full reveal: static outline, stops breathing */
         /* Once the whole ticket is uncovered, the losing cells fade back to spotlight the wins.
            A keyframe (not a transition) so it animates smoothly even when the cell mounts
            straight into the faded state — e.g. Reveal All, where reveal + settle land together. */
@@ -407,6 +432,7 @@ export default function ScratchiePrototype() {
         @keyframes popIn { 0% { transform: scale(0.7); opacity: 0.5; } 100% { transform: scale(1); opacity: 1; } }
         @keyframes winGlow { 0%,100% { box-shadow: 0 0 12px var(--glow);} 50% { box-shadow: 0 0 24px var(--glow);} }
         @keyframes loserFade { from { opacity: 1; filter: saturate(1) brightness(1); } to { opacity: 0.28; filter: saturate(0.5) brightness(0.82); } }
+        @keyframes pairPulse { 0%,100% { box-shadow: inset 0 0 8px -3px var(--accent2); } 50% { box-shadow: inset 0 0 13px -2px var(--accent2), 0 0 9px -3px var(--accent2); } }
         /* Pulse UP from rest (scale 1), not up from a shrink — the banner is already on
            screen showing the running total, so it re-pops in place. Starting at scale 1 also
            means the backwards-fill (both) during the 0.3s delay holds it at its resting size
@@ -424,6 +450,9 @@ export default function ScratchiePrototype() {
         .theme-active { border-color: var(--accent); color: var(--accent); background: rgba(255,215,0,0.1); }
         .result-banner { text-align: center; padding: 12px; border-radius: 10px; margin: 12px auto 0; max-width: 340px; font-weight: 700; font-size: 15px; animation: popIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275); }
         .result-win { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,140,0,0.2)); border: 2px solid var(--accent); color: var(--accent); }
+        /* Every new win while scratching re-pops the running banner (remounted via a
+           count-based key), an immediate pulse from rest — overrides .result-banner's popIn. */
+        .result-bump { animation: bannerPop 0.45s cubic-bezier(0.175,0.885,0.32,1.275); }
         .result-final { animation: bannerPop 0.55s cubic-bezier(0.175,0.885,0.32,1.275) 0.3s both, bannerPulse 1.3s ease-in-out 0.85s 2; }
         .result-near { background: rgba(255,100,100,0.1); border: 2px solid #664; color: #cc8844; }
         .result-loss { background: rgba(100,100,150,0.1); border: 2px solid #334; color: #666; }
@@ -494,9 +523,13 @@ export default function ScratchiePrototype() {
                     {ticket.content.cells.map((cell, idx) => {
                       const isRev = revealed.has(idx);
                       const showWin = litCells.has(idx);
-                      const faded = fadeLosers && !showWin;
+                      const faded = isRev && fadeLosers && !showWin;
+                      // Precedence: win > faded loser > one-away pair > plain revealed. At full
+                      // reveal a lingering (non-win) pair stops breathing via cell-pair-rest.
+                      const pair = isRev && !showWin && !faded && pairCells.has(idx);
+                      const state = !isRev ? "cell-foil" : showWin ? "cell-winner" : pair ? (allRevealed ? "cell-pair cell-pair-rest" : "cell-pair") : "cell-revealed";
                       return (
-                        <button key={idx} className={`cell-btn ${isRev ? (showWin ? "cell-winner" : "cell-revealed") : "cell-foil"} ${faded ? "cell-faded" : ""}`} onClick={() => !isRev && revealCell(idx)}>
+                        <button key={idx} className={`cell-btn ${state} ${faded ? "cell-faded" : ""}`} onClick={() => !isRev && revealCell(idx)}>
                           {!isRev ? coverArt(idx) : ticket.gameType === "match3" ? cell.symbolId : <span className="cell-amount">{cell.prizeLabel}</span>}
                         </button>
                       );
