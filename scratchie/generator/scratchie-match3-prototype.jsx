@@ -295,41 +295,58 @@ export default function ScratchiePrototype() {
   const [theme, setTheme] = useState("fruit");
   const [ticket, setTicket] = useState(null);
   const [revealed, setRevealed] = useState(new Set());
+  const [revealedKeys, setRevealedKeys] = useState(new Set()); // Key Match: the WINNING NUMBERS are scratched too
   const [forceOutcome, setForceOutcome] = useState(null);
   const [history, setHistory] = useState([]);
 
   const generateTicket = useCallback(() => {
     setTicket(generateForType(gameType, theme, forceOutcome));
     setRevealed(new Set());
+    setRevealedKeys(new Set());
   }, [gameType, theme, forceOutcome]);
 
   const cellCount = ticket ? cellsOf(ticket).length : 0;
-  const allRevealed = ticket && revealed.size === cellCount;
+  const keyCount = ticket && ticket.gameType === "keymatch" ? ticket.content.winningNumbers.length : 0;
+  const allRevealed = Boolean(ticket && revealed.size === cellCount && (ticket.gameType !== "keymatch" || revealedKeys.size === keyCount));
 
-  // A win is "realized" as soon as every winning cell is revealed — you don't have
-  // to uncover the whole ticket. (A loss/near-miss still needs the full reveal to
-  // confirm, since you can't rule out a win until everything's uncovered.)
+  // A win is "realized" as soon as the winning combo is uncovered — you don't have to
+  // scratch the whole ticket. For Key Match that means BOTH the matching YOUR number and
+  // the matching WINNING number are revealed. (A loss/near-miss still needs the full
+  // reveal, since you can't rule out a win until everything's shown.)
   const winningIdxs = ticket ? cellsOf(ticket).flatMap((c, i) => (c.isWinning ? [i] : [])) : [];
-  const isWinRealized = (set) => Boolean(ticket && ticket.outcome.isWinner && winningIdxs.length > 0 && winningIdxs.every((i) => set.has(i)));
-  const winRealized = isWinRealized(revealed);
+  const isWinRealized = (rev, keys) => {
+    if (!ticket || !ticket.outcome.isWinner) return false;
+    if (ticket.gameType === "keymatch") {
+      const wi = ticket.content.yourNumbers.findIndex((c) => c.isWinning);
+      if (wi < 0 || !rev.has(wi)) return false;
+      const ki = ticket.content.winningNumbers.indexOf(ticket.content.yourNumbers[wi].number);
+      return ki >= 0 && keys.has(ki);
+    }
+    return winningIdxs.length > 0 && winningIdxs.every((i) => rev.has(i));
+  };
+  const winRealized = isWinRealized(revealed, revealedKeys);
 
   const logHistory = (t) => {
     setHistory((h) => [{ ...t.outcome, id: t.id, gameType: t.gameType, theme: t.themeId }, ...h].slice(0, 20));
   };
+  const maybeLog = (rev, keys) => {
+    const full = rev.size === cellCount && (ticket.gameType !== "keymatch" || keys.size === keyCount);
+    if ((full || isWinRealized(rev, keys)) && !history.find((h) => h.id === ticket.id)) logHistory(ticket);
+  };
 
   const revealCell = (idx) => {
     if (!ticket) return;
-    setRevealed((prev) => {
-      const next = new Set(prev);
-      next.add(idx);
-      if ((next.size === cellCount || isWinRealized(next)) && !history.find((h) => h.id === ticket.id)) logHistory(ticket);
-      return next;
-    });
+    setRevealed((prev) => { const next = new Set(prev); next.add(idx); maybeLog(next, revealedKeys); return next; });
+  };
+  const revealKey = (i) => {
+    if (!ticket) return;
+    setRevealedKeys((prev) => { const next = new Set(prev); next.add(i); maybeLog(revealed, next); return next; });
   };
 
   const revealAll = () => {
     if (!ticket) return;
     setRevealed(new Set(cellsOf(ticket).map((_, i) => i)));
+    setRevealedKeys(new Set(ticket.gameType === "keymatch" ? ticket.content.winningNumbers.map((_, i) => i) : []));
     if (!history.find((h) => h.id === ticket.id)) logHistory(ticket);
   };
 
@@ -375,8 +392,13 @@ export default function ScratchiePrototype() {
         .ticket-body { position: relative; z-index: 1; }
         .cell-foil:hover { background: linear-gradient(135deg, #5a5a7a, #6a6a8a, #5a5a7a); border-color: var(--accent); transform: scale(1.05); }
         .cell-revealed { background: #0d1b2a; border-color: #334; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        .cell-winner { border-color: var(--accent) !important; box-shadow: 0 0 12px var(--glow); animation: popIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275), winGlow 1.5s ease-in-out infinite; }
-        .cell-num { font-size: 26px; font-weight: 800; line-height: 1; }
+        .cell-winner { border: 3px solid var(--accent) !important; background: radial-gradient(circle at 50% 38%, var(--glow) 0%, transparent 70%), #0d1b2a; box-shadow: 0 0 16px var(--glow); animation: popIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275), winGlow 1.5s ease-in-out infinite; }
+        .cell-num { font-size: 26px; font-weight: 800; line-height: 1; color: #dfe; }
+        .cell-winner .cell-num { color: #fff; font-size: 30px; font-weight: 900; text-shadow: 0 0 10px var(--accent), 0 0 22px var(--glow); }
+        .cell-dim { opacity: 0.5; }
+        .cell-dim .cell-num { color: #6b7488; }
+        /* WINNING NUMBERS: same scratch-cell language as YOUR NUMBERS, marked as the "key" set with an accent border/glow. */
+        .key-cell { width: 62px; height: 58px; border: 2px solid var(--accent) !important; box-shadow: 0 0 10px var(--glow); }
         .cell-prize { font-size: 12px; color: #b9b96a; margin-top: 3px; }
         .cell-amount { font-size: 20px; font-weight: 800; color: #ffe08a; }
         @keyframes popIn { 0% { transform: scale(0.7); opacity: 0.5; } 100% { transform: scale(1); opacity: 1; } }
@@ -390,7 +412,6 @@ export default function ScratchiePrototype() {
         .theme-chip { padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: 2px solid #334; background: transparent; color: #8888aa; transition: all 0.15s ease; font-family: 'JetBrains Mono', monospace; white-space: nowrap; }
         .theme-chip:hover { border-color: #666; color: #ccc; }
         .theme-active { border-color: var(--accent); color: var(--accent); background: rgba(255,215,0,0.1); }
-        .keynum-chip { display:inline-flex; align-items:center; justify-content:center; min-width: 40px; height: 40px; padding: 0 8px; border-radius: 8px; font-size: 20px; font-weight: 800; background: linear-gradient(135deg,var(--accent),var(--accent2)); color:#1a1a2e; }
         .result-banner { text-align: center; padding: 12px; border-radius: 10px; margin: 12px auto 0; max-width: 340px; font-weight: 700; font-size: 15px; animation: popIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275); }
         .result-win { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,140,0,0.2)); border: 2px solid var(--accent); color: var(--accent); }
         .result-near { background: rgba(255,100,100,0.1); border: 2px solid #664; color: #cc8844; }
@@ -461,8 +482,9 @@ export default function ScratchiePrototype() {
                     {ticket.content.cells.map((cell, idx) => {
                       const isRev = revealed.has(idx);
                       const showWin = isRev && winRealized && cell.isWinning;
+                      const dim = winRealized && isRev && !cell.isWinning;
                       return (
-                        <button key={idx} className={`cell-btn ${isRev ? (showWin ? "cell-winner" : "cell-revealed") : "cell-foil"}`} onClick={() => !isRev && revealCell(idx)}>
+                        <button key={idx} className={`cell-btn ${isRev ? (showWin ? "cell-winner" : "cell-revealed") : "cell-foil"} ${dim ? "cell-dim" : ""}`} onClick={() => !isRev && revealCell(idx)}>
                           {!isRev ? coverArt(idx) : ticket.gameType === "match3" ? cell.symbolId : <span className="cell-amount">{cell.prizeLabel}</span>}
                         </button>
                       );
@@ -470,23 +492,31 @@ export default function ScratchiePrototype() {
                   </div>
                 )}
 
-                {/* --- Key Number Match: winning numbers + your numbers --- */}
+                {/* --- Key Number Match: (scratchable) winning numbers + your numbers --- */}
                 {ticket.gameType === "keymatch" && (
                   <div>
                     <div className="section-label">Winning Numbers</div>
-                    <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 6 }}>
-                      {ticket.content.winningNumbers.map((n, i) => <span key={i} className="keynum-chip">{n}</span>)}
+                    <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 12 }}>
+                      {ticket.content.winningNumbers.map((n, i) => {
+                        const isRev = revealedKeys.has(i);
+                        return (
+                          <button key={i} className={`cell-btn key-cell ${isRev ? "cell-revealed" : "cell-foil"}`} onClick={() => !isRev && revealKey(i)}>
+                            {isRev ? <span className="cell-num">{n}</span> : coverArt(i)}
+                          </button>
+                        );
+                      })}
                     </div>
                     <div className="section-label">Your Numbers</div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 80px)", gap: 8, justifyContent: "center" }}>
                       {ticket.content.yourNumbers.map((cell, idx) => {
                         const isRev = revealed.has(idx);
                         const showWin = isRev && winRealized && cell.isWinning;
+                        const dim = winRealized && isRev && !cell.isWinning;
                         return (
-                          <button key={idx} className={`cell-btn ${isRev ? (showWin ? "cell-winner" : "cell-revealed") : "cell-foil"}`} onClick={() => !isRev && revealCell(idx)}>
+                          <button key={idx} className={`cell-btn ${isRev ? (showWin ? "cell-winner" : "cell-revealed") : "cell-foil"} ${dim ? "cell-dim" : ""}`} onClick={() => !isRev && revealCell(idx)}>
                             {!isRev ? coverArt(idx) : (
                               <>
-                                <span className="cell-num" style={{ color: showWin ? "var(--accent)" : "#dfe" }}>{cell.number}</span>
+                                <span className="cell-num">{cell.number}</span>
                                 <span className="cell-prize">{cell.prizeLabel}</span>
                               </>
                             )}
