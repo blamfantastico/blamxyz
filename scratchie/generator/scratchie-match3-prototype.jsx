@@ -423,9 +423,12 @@ export default function ScratchiePrototype() {
         .cell-winner .cell-amount { color: #fff; font-size: 22px; font-weight: 900; text-shadow: 0 0 10px var(--accent), 0 0 22px var(--glow); }
         /* One-away: outline-only in the theme's SECONDARY hue + a soft breathing inner glow.
            Deliberately NOT the win — a ring of potential, versus the win's fill + bloom. */
-        .cell-pair { border: 2.5px solid var(--accent2) !important; background: #0d1b2a; box-shadow: inset 0 0 9px -3px var(--accent2); animation: popIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275), pairPulse 1.8s ease-in-out infinite; }
-        .cell-pair .cell-amount { color: var(--accent2); text-shadow: 0 0 7px var(--accent2); }
-        .cell-pair-rest { animation: none; } /* settled at full reveal: static outline, stops breathing */
+        .cell-pair { border: 2.5px solid var(--accent2); background: #0d1b2a; box-shadow: inset 0 0 5px -4px var(--accent2); animation: popIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275), pairPulse 1.8s ease-in-out infinite; }
+        .cell-pair .cell-amount { color: var(--accent2); text-shadow: 0 0 3px var(--accent2); }
+        /* Officially over: a lingering miss-pair fades its brightness down to normal — glow off,
+           outline calmed toward the base border — but keeps its hue, still marking the near miss. */
+        .cell-pair-rest { animation: pairSettle 0.55s ease forwards; }
+        .cell-pair-rest .cell-amount { text-shadow: none; }
         /* Once the whole ticket is uncovered, the losing cells fade back to spotlight the wins.
            A keyframe (not a transition) so it animates smoothly even when the cell mounts
            straight into the faded state — e.g. Reveal All, where reveal + settle land together. */
@@ -438,7 +441,8 @@ export default function ScratchiePrototype() {
         @keyframes popIn { 0% { transform: scale(0.7); opacity: 0.5; } 100% { transform: scale(1); opacity: 1; } }
         @keyframes winGlow { 0%,100% { box-shadow: 0 0 12px var(--glow);} 50% { box-shadow: 0 0 24px var(--glow);} }
         @keyframes loserFade { from { opacity: 1; filter: saturate(1) brightness(1); } to { opacity: 0.28; filter: saturate(0.5) brightness(0.82); } }
-        @keyframes pairPulse { 0%,100% { box-shadow: inset 0 0 8px -3px var(--accent2); } 50% { box-shadow: inset 0 0 13px -2px var(--accent2), 0 0 9px -3px var(--accent2); } }
+        @keyframes pairPulse { 0%,100% { box-shadow: inset 0 0 4px -4px var(--accent2); } 50% { box-shadow: inset 0 0 7px -3px var(--accent2), 0 0 4px -4px var(--accent2); } }
+        @keyframes pairSettle { from { border-color: var(--accent2); box-shadow: inset 0 0 5px -4px var(--accent2); } to { border-color: color-mix(in srgb, var(--accent2) 55%, #3a3a4a); box-shadow: none; } }
         /* Pulse UP from rest (scale 1), not up from a shrink — the banner is already on
            screen showing the running total, so it re-pops in place. Starting at scale 1 also
            means the backwards-fill (both) during the 0.3s delay holds it at its resting size
@@ -529,10 +533,12 @@ export default function ScratchiePrototype() {
                     {ticket.content.cells.map((cell, idx) => {
                       const isRev = revealed.has(idx);
                       const showWin = litCells.has(idx);
-                      const faded = isRev && fadeLosers && !showWin;
-                      // Precedence: win > faded loser > one-away pair > plain revealed. At full
-                      // reveal a lingering (non-win) pair stops breathing via cell-pair-rest.
-                      const pair = isRev && !showWin && !faded && pairCells.has(idx);
+                      // Precedence: win > one-away pair > faded loser > plain revealed. A pair keeps
+                      // its hue even at the end — plain (non-pair) losers gray out to spotlight the win.
+                      const pair = isRev && !showWin && pairCells.has(idx);
+                      const faded = isRev && fadeLosers && !showWin && !pair;
+                      // At full reveal (officially over) a lingering pair settles via cell-pair-rest:
+                      // brightness fades down to normal but the hue stays, marking it as a near miss.
                       const state = !isRev ? "cell-foil" : showWin ? "cell-winner" : pair ? (allRevealed ? "cell-pair cell-pair-rest" : "cell-pair") : "cell-revealed";
                       // Per-amount hue: override --accent2 on this cell so its .cell-pair styling
                       // (and pairPulse) picks up the amount's colour, distinguishing pairs.
