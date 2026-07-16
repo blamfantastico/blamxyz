@@ -306,6 +306,13 @@ export default function ScratchiePrototype() {
   const cellCount = ticket ? cellsOf(ticket).length : 0;
   const allRevealed = ticket && revealed.size === cellCount;
 
+  // A win is "realized" as soon as every winning cell is revealed — you don't have
+  // to uncover the whole ticket. (A loss/near-miss still needs the full reveal to
+  // confirm, since you can't rule out a win until everything's uncovered.)
+  const winningIdxs = ticket ? cellsOf(ticket).flatMap((c, i) => (c.isWinning ? [i] : [])) : [];
+  const isWinRealized = (set) => Boolean(ticket && ticket.outcome.isWinner && winningIdxs.length > 0 && winningIdxs.every((i) => set.has(i)));
+  const winRealized = isWinRealized(revealed);
+
   const logHistory = (t) => {
     setHistory((h) => [{ ...t.outcome, id: t.id, gameType: t.gameType, theme: t.themeId }, ...h].slice(0, 20));
   };
@@ -315,7 +322,7 @@ export default function ScratchiePrototype() {
     setRevealed((prev) => {
       const next = new Set(prev);
       next.add(idx);
-      if (next.size === cellCount && !history.find((h) => h.id === ticket.id)) logHistory(ticket);
+      if ((next.size === cellCount || isWinRealized(next)) && !history.find((h) => h.id === ticket.id)) logHistory(ticket);
       return next;
     });
   };
@@ -453,7 +460,7 @@ export default function ScratchiePrototype() {
                   <div style={{ display: "grid", gridTemplateColumns: `repeat(${ticket.content.gridWidth}, 80px)`, gap: 8, justifyContent: "center" }}>
                     {ticket.content.cells.map((cell, idx) => {
                       const isRev = revealed.has(idx);
-                      const showWin = isRev && allRevealed && cell.isWinning;
+                      const showWin = isRev && winRealized && cell.isWinning;
                       return (
                         <button key={idx} className={`cell-btn ${isRev ? (showWin ? "cell-winner" : "cell-revealed") : "cell-foil"}`} onClick={() => !isRev && revealCell(idx)}>
                           {!isRev ? coverArt(idx) : ticket.gameType === "match3" ? cell.symbolId : <span className="cell-amount">{cell.prizeLabel}</span>}
@@ -474,7 +481,7 @@ export default function ScratchiePrototype() {
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 80px)", gap: 8, justifyContent: "center" }}>
                       {ticket.content.yourNumbers.map((cell, idx) => {
                         const isRev = revealed.has(idx);
-                        const showWin = isRev && allRevealed && cell.isWinning;
+                        const showWin = isRev && winRealized && cell.isWinning;
                         return (
                           <button key={idx} className={`cell-btn ${isRev ? (showWin ? "cell-winner" : "cell-revealed") : "cell-foil"}`} onClick={() => !isRev && revealCell(idx)}>
                             {!isRev ? coverArt(idx) : (
@@ -494,7 +501,7 @@ export default function ScratchiePrototype() {
                 {ticket.gameType === "match3" && (
                   <div style={{ marginTop: 14, padding: "8px 12px", background: "rgba(0,0,0,0.2)", borderRadius: 8, fontSize: 11 }}>
                     {MATCH3_RULES.prizeTiers.map((tier) => (
-                      <div key={tier.id} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0", color: allRevealed && ticket.outcome.prizeTier === tier.id ? "var(--accent)" : "#667" }}>
+                      <div key={tier.id} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0", color: (winRealized || allRevealed) && ticket.outcome.prizeTier === tier.id ? "var(--accent)" : "#667" }}>
                         <span>{tier.condition}</span>
                         <span style={{ fontWeight: 700 }}>{tier.label}</span>
                       </div>
@@ -502,7 +509,7 @@ export default function ScratchiePrototype() {
                   </div>
                 )}
 
-                {allRevealed && banner(ticket)}
+                {(winRealized || allRevealed) && banner(ticket)}
                 </div>
               </div>
             </div>
