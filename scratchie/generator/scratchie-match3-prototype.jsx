@@ -407,7 +407,11 @@ export default function ScratchiePrototype() {
         @keyframes popIn { 0% { transform: scale(0.7); opacity: 0.5; } 100% { transform: scale(1); opacity: 1; } }
         @keyframes winGlow { 0%,100% { box-shadow: 0 0 12px var(--glow);} 50% { box-shadow: 0 0 24px var(--glow);} }
         @keyframes loserFade { from { opacity: 1; filter: saturate(1) brightness(1); } to { opacity: 0.28; filter: saturate(0.5) brightness(0.82); } }
-        @keyframes bannerPop { 0% { transform: scale(0.85); } 45% { transform: scale(1.13); } 72% { transform: scale(0.98); } 100% { transform: scale(1); } }
+        /* Pulse UP from rest (scale 1), not up from a shrink — the banner is already on
+           screen showing the running total, so it re-pops in place. Starting at scale 1 also
+           means the backwards-fill (both) during the 0.3s delay holds it at its resting size
+           (invisible) instead of snapping it to a smaller scale and freezing there. */
+        @keyframes bannerPop { 0% { transform: scale(1); } 35% { transform: scale(1.12); } 70% { transform: scale(0.97); } 100% { transform: scale(1); } }
         @keyframes bannerPulse { 0%,100% { box-shadow: 0 0 0 rgba(0,0,0,0); } 50% { box-shadow: 0 0 26px var(--glow); } }
         .ctrl-btn { padding: 8px 16px; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s ease; border: 2px solid; }
         .ctrl-primary { background: var(--accent); color: #1a1a2e; border-color: var(--accent); }
