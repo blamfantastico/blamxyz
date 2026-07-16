@@ -391,7 +391,7 @@ export default function ScratchiePrototype() {
         .theme-chip:hover { border-color: #666; color: #ccc; }
         .theme-active { border-color: var(--accent); color: var(--accent); background: rgba(255,215,0,0.1); }
         .keynum-chip { display:inline-flex; align-items:center; justify-content:center; min-width: 40px; height: 40px; padding: 0 8px; border-radius: 8px; font-size: 20px; font-weight: 800; background: linear-gradient(135deg,var(--accent),var(--accent2)); color:#1a1a2e; }
-        .result-banner { text-align: center; padding: 12px; border-radius: 10px; margin-top: 12px; font-weight: 700; font-size: 15px; animation: popIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275); }
+        .result-banner { text-align: center; padding: 12px; border-radius: 10px; margin: 12px auto 0; max-width: 340px; font-weight: 700; font-size: 15px; animation: popIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275); }
         .result-win { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,140,0,0.2)); border: 2px solid var(--accent); color: var(--accent); }
         .result-near { background: rgba(255,100,100,0.1); border: 2px solid #664; color: #cc8844; }
         .result-loss { background: rgba(100,100,150,0.1); border: 2px solid #334; color: #666; }
@@ -509,9 +509,10 @@ export default function ScratchiePrototype() {
                   </div>
                 )}
 
-                {(winRealized || allRevealed) && banner(ticket)}
                 </div>
               </div>
+              {/* Result banner sits BELOW the ticket so the card never changes size */}
+              {(winRealized || allRevealed) && banner(ticket)}
             </div>
 
             {/* Data panel */}
