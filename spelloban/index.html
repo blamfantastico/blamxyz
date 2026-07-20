@@ -168,9 +168,10 @@
      Reuses the crate look (gold, or green when it would land on its slot). */
   .crate.ghost{ z-index:1; pointer-events:none; transition:none; }
   .crate.ghost .box{
-    opacity:.5;
+    background:rgba(228,233,240,.22);   /* faint neutral white/gray — no gold/green "locks in" tell */
+    color:rgba(255,255,255,.5);
     box-shadow:none;
-    outline:2px dashed rgba(255,255,255,.6);
+    outline:2px dashed rgba(255,255,255,.5);
     outline-offset:-4px;
     animation:none;
   }
@@ -1023,8 +1024,7 @@ function showPushGhost(cr, cc, dir){
     ghostEl.appendChild(box);
     boardEl.appendChild(ghostEl);
   }
-  ghostEl.firstChild.textContent = letter;
-  ghostEl.classList.toggle("green", slotLetterAt(s, br, bc) === letter);  // lands on its slot
+  ghostEl.firstChild.textContent = letter;   // neutral ghost — no green, so it never spoils a lock-in
   placeMover(ghostEl, br, bc);
 }
 
@@ -1469,9 +1469,8 @@ function toast(msg){
   const endGesture = () => { active = false; previewDir = null; hidePushGhost(); };
   boardEl.addEventListener("pointercancel", endGesture);
 
-  boardEl.addEventListener("pointerup", (e) => {
-    hidePushGhost();
-    if (!active) return;
+  boardEl.addEventListener("pointerup", async (e) => {
+    if (!active){ hidePushGhost(); return; }
     active = false;
     previewDir = null;
     e.preventDefault();
@@ -1480,6 +1479,7 @@ function toast(msg){
     const ax = Math.abs(dx), ay = Math.abs(dy);
 
     if (Math.max(ax, ay) < MIN){           // TAP → walk to the cell
+      hidePushGhost();
       const cell = cellFromPoint(e.clientX, e.clientY);
       if (cell) walkTo(cell[0], cell[1]);
       return;
@@ -1487,10 +1487,16 @@ function toast(msg){
     // SWIPE / DRAG → a directional step, OR a push if it started on a crate
     const dir = dirOf(dx, dy);
     const start = startCell || cellFromPoint(sx, sy);
-    if (start && crateIndexAt(game.state, start[0], start[1]) !== -1)
-      walkAndPush(start[0], start[1], dir);   // swipe a block → line up + push
-    else
+    if (start && crateIndexAt(game.state, start[0], start[1]) !== -1){
+      // Hold the ghost through the walk-up AND the push, hiding only once the
+      // real crate has finished sliding into the previewed cell (no gap/flicker).
+      await walkAndPush(start[0], start[1], dir);
+      await delay(140);                       // ~one slide (transition is .12s)
+      hidePushGhost();
+    } else {
+      hidePushGhost();
       doMove(dir);                            // swipe floor → single step
+    }
   });
 })();
 
