@@ -163,6 +163,18 @@
     100%{transform:scale(1);}
   }
 
+  /* push preview ("ghost"): a translucent, dashed landing crate shown while you
+     drag a crate directly — the consequence of the push before you commit it.
+     Reuses the crate look (gold, or green when it would land on its slot). */
+  .crate.ghost{ z-index:1; pointer-events:none; transition:none; }
+  .crate.ghost .box{
+    opacity:.5;
+    box-shadow:none;
+    outline:2px dashed rgba(255,255,255,.6);
+    outline-offset:-4px;
+    animation:none;
+  }
+
   .player .avatar{
     width:60%;height:60%;border-radius:50%;
     background:radial-gradient(circle at 35% 30%, #9cc9ff, var(--player));
@@ -767,7 +779,9 @@ function buildBoard(){
   const s = game.state;
   boardEl.style.setProperty("--cols", s.cols);
   boardEl.style.setProperty("--rows", s.rows);
+  hidePushGhost();                 // drop any stale ghost before wiping the board
   boardEl.innerHTML = "";
+  ghostEl = null;                  // innerHTML wipe detaches it; forget the ref
 
   // terrain + slot cells (static grid)
   for (let r = 0; r < s.rows; r++){
@@ -982,6 +996,36 @@ function tapFx(r, c){
   placeMover(el, r, c);
   boardEl.appendChild(el);
   setTimeout(() => el.remove(), 340);
+}
+
+/* ---------- push preview ("ghost") ----------
+   AME-style: make the consequence of a push visible before you commit it.
+   While the player drags a crate directly, a translucent crate is shown at the
+   cell it would land on — but only when that push will really happen on release
+   (legal move AND the player can reach the push-from cell, per pushPlan). If the
+   push is a no-op, no ghost is shown (we never preview a move that won't occur).
+   Pure preview: reads state via pushPlan/slotLetterAt, never mutates the board. */
+let ghostEl = null;
+function hidePushGhost(){ if (ghostEl){ ghostEl.remove(); ghostEl = null; } }
+function showPushGhost(cr, cc, dir){
+  const s = game.state;
+  if (!s || game.won || game.animating){ hidePushGhost(); return; }
+  const ci = crateIndexAt(s, cr, cc);
+  const d = DIRS[dir];
+  if (ci === -1 || !d || pushPlan(s, cr, cc, dir) === null){ hidePushGhost(); return; }
+  const br = cr + d[0], bc = cc + d[1];          // cell the crate lands on
+  const letter = s.crates[ci].letter;
+  if (!ghostEl){
+    ghostEl = document.createElement("div");
+    ghostEl.className = "mover crate ghost";
+    const box = document.createElement("div");
+    box.className = "box";
+    ghostEl.appendChild(box);
+    boardEl.appendChild(ghostEl);
+  }
+  ghostEl.firstChild.textContent = letter;
+  ghostEl.classList.toggle("green", slotLetterAt(s, br, bc) === letter);  // lands on its slot
+  placeMover(ghostEl, br, bc);
 }
 
 // map a viewport point to a board cell, or null if outside
@@ -1389,24 +1433,47 @@ function toast(msg){
 (function setupBoardInput(){
   const MIN = 24;                          // px: tap vs. swipe threshold
   let sx = 0, sy = 0, active = false;
+  let startCell = null, startOnCrate = false, previewDir = null;
+
+  const dirOf = (dx, dy) =>
+    Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left")
+                                : (dy > 0 ? "down"  : "up");
 
   boardEl.addEventListener("pointerdown", (e) => {
     if (!e.isPrimary) return;
     active = true;
     sx = e.clientX; sy = e.clientY;
+    startCell = cellFromPoint(sx, sy);       // cache: drives the crate-drag preview
+    startOnCrate = !!(startCell && crateIndexAt(game.state, startCell[0], startCell[1]) !== -1);
+    previewDir = null;
     try { boardEl.setPointerCapture(e.pointerId); } catch {}
     e.preventDefault();
   });
 
   boardEl.addEventListener("pointermove", (e) => {
-    if (active) e.preventDefault();        // block scroll / rubber-band mid-gesture
+    if (!active) return;
+    e.preventDefault();                      // block scroll / rubber-band mid-gesture
+    if (!startOnCrate) return;               // only a direct crate-drag gets a ghost
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < MIN){   // back inside the tap zone
+      if (previewDir){ previewDir = null; hidePushGhost(); }
+      return;
+    }
+    const dir = dirOf(dx, dy);
+    if (dir !== previewDir){                  // direction changed → re-preview the landing
+      previewDir = dir;
+      showPushGhost(startCell[0], startCell[1], dir);   // self-hides if the push is a no-op
+    }
   });
 
-  boardEl.addEventListener("pointercancel", () => { active = false; });
+  const endGesture = () => { active = false; previewDir = null; hidePushGhost(); };
+  boardEl.addEventListener("pointercancel", endGesture);
 
   boardEl.addEventListener("pointerup", (e) => {
+    hidePushGhost();
     if (!active) return;
     active = false;
+    previewDir = null;
     e.preventDefault();
 
     const dx = e.clientX - sx, dy = e.clientY - sy;
@@ -1418,9 +1485,8 @@ function toast(msg){
       return;
     }
     // SWIPE / DRAG → a directional step, OR a push if it started on a crate
-    const dir = ax > ay ? (dx > 0 ? "right" : "left")
-                        : (dy > 0 ? "down"  : "up");
-    const start = cellFromPoint(sx, sy);
+    const dir = dirOf(dx, dy);
+    const start = startCell || cellFromPoint(sx, sy);
     if (start && crateIndexAt(game.state, start[0], start[1]) !== -1)
       walkAndPush(start[0], start[1], dir);   // swipe a block → line up + push
     else
@@ -1797,6 +1863,7 @@ window.SPELLOBAN = {
   get won(){ return game.won; },
   applyMove, findPath, isSolved, isCrateGreen, dirFromDelta,
   commitMove, doMove, walkTo, pushPlan, walkAndPush, undo, reset,
+  showPushGhost, hidePushGhost,
   load: (i) => loadPuzzle(PUZZLES[i]),
   puzzles: PUZZLES,
   platform: Platform,
