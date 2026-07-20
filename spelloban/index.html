@@ -278,8 +278,6 @@
   .stars .s.on{color:#ffc93c;text-shadow:0 0 10px rgba(255,201,60,.5);animation:tilePop .4s ease both;}
   /* "perfect" note — shown only on an optimal solve; the optimal move count
      itself is never revealed, so players discover it. Gold to match. */
-  .card .perfectnote{color:#ffc93c;font-weight:800;font-size:15px;margin:0 0 16px;}
-  .card .perfectnote:empty{display:none;}
   /* per-puzzle record line: your best score + attempt count for this puzzle */
   .card .record{color:var(--muted);font-size:13px;margin:0 0 16px;}
   .card .record b{color:var(--text);}
@@ -296,8 +294,10 @@
   /* persistent stats line (start + win screens) */
   .statline{color:var(--muted);font-size:12px;line-height:1.6;}
   .statline b{color:var(--text);}
-  #startStatline{margin:16px 0 0;min-height:16px;}
-  #winStatline{margin:16px 0 0;}
+  #startStatline{margin:16px 0 0;min-height:16px;cursor:pointer;}
+  #winStatline{margin:16px 0 0;cursor:pointer;}
+  /* both statlines are doorways into the one Stats modal */
+  #startStatline:hover,#winStatline:hover{color:var(--text);}
 
   /* ---------- daily landing (Sealed Crates) — full-screen front door ---------- */
   /* opaque landing — no board leaks behind it */
@@ -393,6 +393,9 @@
     </div>
   </div>
   <div class="topActions">
+    <button class="iconbtn" id="homeBtn" aria-label="Back to daily menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>
+    </button>
     <button class="iconbtn" id="helpBtn" aria-label="How to play">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
     </button>
@@ -435,6 +438,7 @@
     <div class="result" id="landResult"></div>
     <div class="countdown" id="landCountdown"></div>
     <button class="primary" id="playBtn">▶ Play</button>
+    <button class="ghost" id="restartBtn" style="display:none">↻ Restart</button>
     <div class="statline" id="startStatline"></div>
     <div class="dotstrip" id="dotStrip"></div>
     <div class="testnote">⚙ Testing — step ‹ › to preview any day</div>
@@ -448,12 +452,11 @@
     <h2>SOLVED!</h2>
     <div class="wintiles" id="winWord"></div>
     <div class="stars" id="winStars" aria-hidden="true"></div>
-    <p>You unscrambled it in</p>
     <div class="big"><span id="winMoves">0</span> moves</div>
-    <div class="perfectnote" id="winPerfect"></div>
     <div class="record" id="winRecord"></div>
-    <button class="primary" id="copyBtn">Copy result</button>
+    <button class="primary" id="backHomeBtn">Back to menu</button>
     <button class="ghost" id="playAgainBtn">Play again</button>
+    <button class="ghost" id="copyBtn">Copy result</button>
     <div class="nextin" id="winNext"></div>
     <div class="statline" id="winStatline"></div>
   </div>
@@ -1260,7 +1263,7 @@ function setSeeResult(on){
 function openWinCard(){
   winOverlay.classList.add("show");
   setSeeResult(false);
-  copyBtn.focus({ preventScroll: true });
+  document.getElementById("backHomeBtn").focus({ preventScroll: true });   // primary = Back to menu
 }
 // Peek: hide the card to reveal the solved board, but keep game.won = true so
 // stray taps don't disturb it. The "See result" pill (and Escape/backdrop)
@@ -1296,16 +1299,19 @@ function win(){
   const perfect = isOptimal(game.state.moves, game.state.meta.optimal);
   if (navigator.vibrate) navigator.vibrate(perfect ? [30,40,30,40,60] : [20,40,20]);
 
-  const solved = game.state.crates
-    .map((c, i) => i)
-    .filter(i => isCrateGreen(game.state, game.state.crates[i]));
+  // Ripple the celebration in SPELLING order (left-to-right / top-to-bottom as the
+  // word reads) by walking slots in index order, not the arbitrary crate-array
+  // order. On a win every slot holds its matching crate, so this maps 1:1.
+  const order = game.state.slots
+    .map(slot => crateIndexAt(game.state, slot.r, slot.c))
+    .filter(i => i >= 0);
   const SLIDE = 170, STAGGER = 130;        // wait for the last slide, then wave
-  solved.forEach((i, k) => setTimeout(() => {
+  order.forEach((i, k) => setTimeout(() => {
     const el = game.crateEls[i];
     if (el){ el.classList.remove("pop", "celebrate"); void el.offsetWidth; el.classList.add("celebrate"); }
   }, SLIDE + k * STAGGER));
 
-  setTimeout(showWinModal, SLIDE + solved.length * STAGGER + 420);
+  setTimeout(showWinModal, SLIDE + order.length * STAGGER + 420);
 }
 
 function showWinModal(){
@@ -1316,8 +1322,8 @@ function showWinModal(){
   // completed word as green letter-tiles
   renderTiles(document.getElementById("winWord"), answer);
 
-  // headline + gold "perfect" treatment on an optimal solve
-  document.querySelector("#winOverlay h2").textContent = perfect ? "OPTIMAL!" : "SOLVED!";
+  // Headline is always "SOLVED!" — the ★ rating conveys how well you did, not a
+  // word. An exact-optimal solve still earns the gold card + confetti as a reward.
   document.querySelector("#winOverlay .card").classList.toggle("perfect", perfect);
 
   // star rating (hidden when the puzzle has no optimal). The optimal move
@@ -1337,9 +1343,6 @@ function showWinModal(){
   } else {
     starsEl.style.display = "none";
   }
-  // "perfect" note only on a true optimal — no number revealed
-  document.getElementById("winPerfect").innerHTML = perfect ? "👑 PERFECT" : "";
-
   document.getElementById("winMoves").textContent = moves;
 
   // Streak/played advance ONLY for today's actual daily — never for archive,
@@ -1502,19 +1505,25 @@ const statsOverlay = document.getElementById("statsOverlay");
 const showHelp = () => helpOverlay.classList.add("show");
 const hideHelp = () => helpOverlay.classList.remove("show");
 const hideStats = () => { stopCountdown(); statsOverlay.classList.remove("show"); };
+document.getElementById("homeBtn").addEventListener("click", openLanding);      // play top-bar Home
 document.getElementById("helpBtn").addEventListener("click", showHelp);        // play top-bar "?"
 document.getElementById("landHelpBtn").addEventListener("click", showHelp);    // landing "?"
 document.getElementById("helpCloseBtn").addEventListener("click", hideHelp);
 document.getElementById("helpGotBtn").addEventListener("click", hideHelp);
 helpOverlay.addEventListener("click", (e) => { if (e.target === helpOverlay) hideHelp(); });
-document.getElementById("statsBtn").addEventListener("click", () => {
+function openStats(){
   const s = loadStats();
   document.getElementById("stPlayed").textContent = s.played;
   document.getElementById("stStreak").textContent = s.curStreak;
   document.getElementById("stBest").textContent = s.bestStreak;
   startCountdown(document.getElementById("statsNext"));   // reuse the daily ticker
   statsOverlay.classList.add("show");
-});
+}
+// One canonical Stats view: the board 📊 icon AND the inline statlines (landing +
+// win card) all open the same modal — no separate stat renders to keep in sync.
+document.getElementById("statsBtn").addEventListener("click", openStats);
+document.getElementById("startStatline").addEventListener("click", openStats);
+document.getElementById("winStatline").addEventListener("click", openStats);
 document.getElementById("statsCloseBtn").addEventListener("click", hideStats);
 document.getElementById("statsDoneBtn").addEventListener("click", hideStats);
 statsOverlay.addEventListener("click", (e) => { if (e.target === statsOverlay) hideStats(); });
@@ -1654,8 +1663,10 @@ function renderLanding(){
   const resEl = document.getElementById("landResult");
   const cdEl  = document.getElementById("landCountdown");
   const playBtn = document.getElementById("playBtn");
+  const restartBtn = document.getElementById("restartBtn");
 
   if (solved){
+    restartBtn.style.display = "none";
     tagEl.style.display = "none";
     resEl.innerHTML = isToday ? `✓ Solved in <b>${rec.best}</b> moves`
                               : `✓ Best <b>${rec.best}</b> moves`;
@@ -1674,6 +1685,9 @@ function renderLanding(){
     playBtn.textContent = inProgress ? "▶ Resume" : "▶ Play";
     playBtn.onclick = () => startPuzzle(daily);
     sealEl.onclick = () => startPuzzle(daily);   // tapping the sealed crates = bonus Play
+    // In progress → offer a secondary Restart: drop the saved snapshot, start fresh.
+    restartBtn.style.display = inProgress ? "" : "none";
+    restartBtn.onclick = () => { clearProgress(daily.id); startPuzzle(daily); };
   }
 
   document.getElementById("startStatline").innerHTML = statsHTML(loadStats());
@@ -1684,18 +1698,27 @@ function renderLanding(){
 document.getElementById("datePrev").addEventListener("click", () => { viewedDate = addDays(viewedDate, -1); renderLanding(); });
 document.getElementById("dateNext").addEventListener("click", () => { viewedDate = addDays(viewedDate,  1); renderLanding(); });
 
-function showStart(){
-  viewedDate = getToday();                     // always open on today
+// Return to the landing lobby WITHOUT changing the viewed day — Home from the
+// board and "Back to landing" from the win card both land on the day you were on
+// (today→today, archive→that day). Progress autosaves per move, so leaving an
+// unsolved puzzle is safe; that day just reads "Resume".
+function openLanding(){
+  clearWinUI();                                // close win card / peek if open
   document.body.classList.add("landing-up");
   renderLanding();
   startOverlay.classList.add("show");
   document.getElementById("playBtn").focus({ preventScroll: true });
+}
+function showStart(){                           // boot: always open on today
+  viewedDate = getToday();
+  openLanding();
 }
 
 playAgainBtn.addEventListener("click", () => {
   clearWinUI();
   reset();
 });
+document.getElementById("backHomeBtn").addEventListener("click", openLanding);   // win → daily menu
 
 // dev-only puzzle picker: injected + wired only under ?dev, so the shipped
 // chrome never shows a raw <select>. The start menu is the player-facing switch.
