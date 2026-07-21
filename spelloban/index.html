@@ -317,9 +317,8 @@
   .statline{color:var(--muted);font-size:12px;line-height:1.6;}
   .statline b{color:var(--text);}
   #startStatline{margin:16px 0 0;min-height:16px;cursor:pointer;}
-  #winStatline{margin:16px 0 0;cursor:pointer;}
-  /* both statlines are doorways into the one Stats modal */
-  #startStatline:hover,#winStatline:hover{color:var(--text);}
+  #startStatline:hover{color:var(--text);}   /* landing statline → Stats modal */
+  #winStatgrid{margin:18px 0 2px;}           /* full stats built into the end screen */
 
   /* ---------- daily landing (Sealed Crates) — full-screen front door ---------- */
   /* opaque landing — no board leaks behind it */
@@ -476,7 +475,11 @@
     <button class="ghost" id="copyBtn">Copy result</button>
     <button class="ghost" id="backHomeBtn">Menu</button>
     <div class="nextin" id="winNext"></div>
-    <div class="statline" id="winStatline"></div>
+    <div class="statgrid" id="winStatgrid">
+      <div><b id="winStPlayed">0</b><span>Solved</span></div>
+      <div><b id="winStStreak">0</b><span>Streak</span></div>
+      <div><b id="winStBest">0</b><span>Best</span></div>
+    </div>
   </div>
 </div>
 
@@ -1453,7 +1456,9 @@ function showWinModal(){
   // solves still write per-puzzle best/tries (recordBest below) but not streak.
   const isDaily = game.state.id === dailyPuzzle(getToday()).id;
   const stats = (IS_TEST || !isDaily || game.debugReplay) ? loadStats() : recordSolve();
-  document.getElementById("winStatline").innerHTML = statsHTML(stats);
+  document.getElementById("winStPlayed").textContent = stats.played;
+  document.getElementById("winStStreak").textContent = stats.curStreak;
+  document.getElementById("winStBest").textContent = stats.bestStreak;
 
   // per-puzzle personal best + attempt count for THIS puzzle (skipped on a debug replay)
   const { rec, first, improved } = game.debugReplay
@@ -1644,7 +1649,6 @@ function openStats(){
 // win card) all open the same modal — no separate stat renders to keep in sync.
 document.getElementById("statsBtn").addEventListener("click", openStats);
 document.getElementById("startStatline").addEventListener("click", openStats);
-document.getElementById("winStatline").addEventListener("click", openStats);
 document.getElementById("statsCloseBtn").addEventListener("click", hideStats);
 document.getElementById("statsDoneBtn").addEventListener("click", hideStats);
 statsOverlay.addEventListener("click", (e) => { if (e.target === statsOverlay) hideStats(); });
