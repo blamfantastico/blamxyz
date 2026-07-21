@@ -211,8 +211,10 @@
   /* Reset (left) and Undo (right): matching labeled icon buttons */
   button.ctl{ border-radius:12px; }
   .ctl svg{ width:17px; height:17px; flex:0 0 auto; }
-  .ctl.undo, .ctl.reset{ background:var(--floor); border:1px solid #2c333b; padding:12px 16px;
+  .ctl.undo, .ctl.reset{ border:1px solid #2c333b; padding:12px 16px;
     font-size:14px; display:inline-flex; align-items:center; gap:7px; flex:0 0 auto; }
+  .ctl.undo{ background:var(--floor); }               /* filled */
+  .ctl.reset{ background:transparent; color:var(--muted); }   /* outline / secondary */
 
   /* tap ripple feedback */
   .tapfx{pointer-events:none;z-index:4;}
@@ -1451,11 +1453,14 @@ function showWinModal(){
   // date-stepper, or ?date= solves (otherwise the streak is farmable). Non-today
   // solves still write per-puzzle best/tries (recordBest below) but not streak.
   const isDaily = game.state.id === dailyPuzzle(getToday()).id;
-  const stats = (IS_TEST || !isDaily) ? loadStats() : recordSolve();
+  const stats = (IS_TEST || !isDaily || game.debugReplay) ? loadStats() : recordSolve();
   document.getElementById("winStatline").innerHTML = statsHTML(stats);
 
-  // per-puzzle personal best + attempt count for THIS puzzle
-  const { rec, first, improved } = recordBest(game.state.id, moves);
+  // per-puzzle personal best + attempt count for THIS puzzle (skipped on a debug replay)
+  const { rec, first, improved } = game.debugReplay
+    ? { rec: getRecord(game.state.id), first: false, improved: false }
+    : recordBest(game.state.id, moves);
+  game.debugReplay = false;
   const recordEl = document.getElementById("winRecord");
   recordEl.className = "record" + (improved ? " newbest" : "");
   recordEl.innerHTML = !rec.tries ? ""
@@ -1865,6 +1870,23 @@ document.getElementById("backHomeBtn").addEventListener("click", openLanding);  
     } else {
       loadPuzzle(PLAYLIST[Number(pickerEl.value)]);
     }
+  });
+
+  // debug: instantly solve the current board and replay the win celebration + modal
+  const solveBtn = document.createElement("button");
+  solveBtn.textContent = "▶ Solve anim";
+  solveBtn.style.cssText = "position:fixed;left:8px;bottom:calc(env(safe-area-inset-bottom) + 50px);z-index:70;font-size:12px;padding:7px 10px;";
+  document.body.appendChild(solveBtn);
+  solveBtn.addEventListener("click", () => {
+    if (!game.state || game.animating) return;
+    clearWinUI(); game.won = false; game.debugReplay = true;   // replay only — don't record
+    const used = new Set();                              // snap each crate onto a matching slot
+    game.state.slots.forEach(slot => {
+      const ci = game.state.crates.findIndex((c, i) => !used.has(i) && c.letter === slot.letter);
+      if (ci >= 0){ used.add(ci); game.state.crates[ci] = { r: slot.r, c: slot.c, letter: game.state.crates[ci].letter }; }
+    });
+    render();
+    win();                                               // celebration wave → win modal
   });
 })();
 
