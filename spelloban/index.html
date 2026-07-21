@@ -193,13 +193,12 @@
   }
   .crate{z-index:2;}
 
-  /* control bar: MOVES · Undo/Reset */
-  .controls{ display:flex; align-items:center; justify-content:space-between; height:var(--footH); padding:0 4px; gap:10px; }
-  .moves{ display:flex; flex-direction:column; line-height:1; }
+  /* control bar: Reset · MOVES (centered) · Undo */
+  .controls{ display:flex; align-items:center; height:var(--footH); padding:0 4px; gap:10px; }
+  .moves{ flex:1; display:flex; flex-direction:column; align-items:center; line-height:1; }
   .moves .lbl{ font-size:10px; font-weight:700; letter-spacing:1.5px; color:var(--muted); }
   .moves b{ font-size:22px; font-weight:800; color:var(--text); font-variant-numeric:tabular-nums; margin-top:4px; }
 
-  .ctl-actions{ display:flex; align-items:center; gap:8px; }
   button{
     font-family:inherit;font-weight:700;color:var(--text);
     background:var(--panel);border:1px solid #2c333b;border-radius:10px;
@@ -209,16 +208,11 @@
   button.primary{background:var(--accent);color:#04101f;border-color:transparent;}
   button.ghost{background:transparent;}
 
-  /* Undo = prominent (used constantly); Reset = quiet icon → inline confirm */
+  /* Reset (left) and Undo (right): matching labeled icon buttons */
   button.ctl{ border-radius:12px; }
   .ctl svg{ width:17px; height:17px; flex:0 0 auto; }
-  .ctl.undo{ background:var(--floor); border:1px solid #2c333b; padding:12px 16px; font-size:14px;
-    display:inline-flex; align-items:center; gap:7px; }
-  .ctl.reset{ background:transparent; border:1px solid #2c333b; color:var(--muted);
-    width:46px; height:46px; padding:0; font-size:18px; display:flex; align-items:center; justify-content:center;
-    transition:width .15s, background .15s, color .15s, border-color .15s; }
-  .ctl.reset.confirm{ width:auto; padding:0 14px; font-size:13px; color:#fff;
-    border-color:var(--danger); background:rgba(224,106,90,.15); }
+  .ctl.undo, .ctl.reset{ background:var(--floor); border:1px solid #2c333b; padding:12px 16px;
+    font-size:14px; display:inline-flex; align-items:center; gap:7px; flex:0 0 auto; }
 
   /* tap ripple feedback */
   .tapfx{pointer-events:none;z-index:4;}
@@ -237,6 +231,20 @@
     background:linear-gradient(var(--crate-top),var(--crate)); }
   .howtonote{ color:var(--muted); font-size:13px; line-height:1.5; margin:0 0 20px; }
   .howtonote b{ color:var(--text); }
+
+  /* settings toggle row (in How to play) */
+  .settingrow{ display:flex; align-items:center; justify-content:space-between; gap:12px;
+    text-align:left; margin:0 0 16px; padding:11px 14px; border:1px solid #2c333b;
+    border-radius:12px; background:var(--floor); }
+  .settingrow .lbl{ display:flex; flex-direction:column; }
+  .settingrow .lbl b{ font-size:14px; color:var(--text); }
+  .settingrow .lbl small{ color:var(--muted); font-size:12px; margin-top:2px; }
+  .switch{ appearance:none; -webkit-appearance:none; flex:0 0 auto; width:46px; height:28px;
+    border-radius:14px; background:#2c333b; position:relative; cursor:pointer; transition:background .15s; }
+  .switch:checked{ background:var(--accent); }
+  .switch::after{ content:""; position:absolute; top:3px; left:3px; width:22px; height:22px;
+    border-radius:50%; background:#fff; transition:left .15s; }
+  .switch:checked::after{ left:21px; }
 
   /* stats overlay grid */
   .statgrid{ display:flex; justify-content:space-around; gap:8px; margin:8px 0 18px; }
@@ -425,13 +433,10 @@
 </div>
 
 <div class="controls">
+  <button class="ctl reset" id="resetBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>Reset</button>
   <div class="moves"><span class="lbl">MOVES</span><b id="moveCount">0</b></div>
-  <div class="ctl-actions">
-    <button class="ctl undo" id="undoBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>Undo</button>
-    <!-- reset icon markup kept in sync with RESET_ICON in the reset-arm logic below -->
-    <button class="ctl reset" id="resetBtn" aria-label="Reset puzzle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></button>
-    <button class="ctl seeresult" id="seeResultBtn" style="display:none" aria-label="See your result"><span class="cratechk"></span>See result</button>
-  </div>
+  <button class="ctl undo" id="undoBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>Undo</button>
+  <button class="ctl seeresult" id="seeResultBtn" style="display:none" aria-label="See your result"><span class="cratechk"></span>See result</button>
 </div>
 
 <!-- Daily landing (Sealed Crates) — opaque, board-free until Play -->
@@ -466,9 +471,9 @@
     <div class="stars" id="winStars" aria-hidden="true"></div>
     <div class="big"><span id="winMoves">0</span> moves</div>
     <div class="record" id="winRecord"></div>
-    <button class="primary" id="backHomeBtn">Back to menu</button>
-    <button class="ghost" id="playAgainBtn">Play again</button>
+    <button class="primary" id="playAgainBtn">Play again</button>
     <button class="ghost" id="copyBtn">Copy result</button>
+    <button class="ghost" id="backHomeBtn">Menu</button>
     <div class="nextin" id="winNext"></div>
     <div class="statline" id="winStatline"></div>
   </div>
@@ -495,6 +500,10 @@
       <li><span class="hnum">3</span><span>Push every crate onto its dashed slot to spell the hidden word.</span></li>
     </ul>
     <p class="howtonote">Fewer moves earn more stars. A fresh puzzle daily — <b>gentle on Monday, toughest by the weekend.</b></p>
+    <label class="settingrow">
+      <span class="lbl"><b>Swipe to move</b><small>Swipe the floor to step · off = tap / arrows only</small></span>
+      <input type="checkbox" id="dirSwipeToggle" class="switch" aria-label="Swipe to move">
+    </label>
     <button class="primary" id="helpGotBtn">Got it</button>
   </div>
 </div>
@@ -768,7 +777,6 @@ function loadPuzzle(puzzleJson){
   game.animating = false;
   game.counted = false;
   applyDayMeta(puzzleJson);        // top-bar weekday + difficulty from meta.day
-  disarmReset();                   // never carry an armed Reset across puzzles
   clearWinUI();
   buildBoard();
   render();
@@ -1371,7 +1379,7 @@ function setSeeResult(on){
 function openWinCard(){
   winOverlay.classList.add("show");
   setSeeResult(false);
-  document.getElementById("backHomeBtn").focus({ preventScroll: true });   // primary = Back to menu
+  document.getElementById("playAgainBtn").focus({ preventScroll: true });   // primary = Play again
 }
 // Peek: hide the card to reveal the solved board, but keep game.won = true so
 // stray taps don't disturb it. The "See result" pill (and Escape/backdrop)
@@ -1538,10 +1546,12 @@ function toast(msg){
     // are inert: navigation is tap-to-walk (or arrows/WASD), so drag means one
     // thing — grab and push a crate.
     const start = startCell || cellFromPoint(sx, sy);
-    if (start && crateIndexAt(game.state, start[0], start[1]) !== -1)
+    if (start && crateIndexAt(game.state, start[0], start[1]) !== -1){
       await commitCrateDrag(start[0], start[1], dirOf(dx, dy));   // legal push / bump / walk-close
-    else
+    } else {
       hidePushGhost();
+      if (dirSwipeOn()) doMove(dirOf(dx, dy));   // "Swipe to move" (toggle in How to play)
+    }
   });
 })();
 
@@ -1591,30 +1601,20 @@ window.addEventListener("keydown", (e) => {
 
 document.getElementById("undoBtn").addEventListener("click", undo);
 
-// Reset = quiet ↻ icon; first tap arms an inline "Reset?" chip for 2s, second
-// tap within that window confirms. Guards the (unrecoverable) undo-history wipe
-// against a fat-finger tap — no modal, no new overlay.
-const resetBtn = document.getElementById("resetBtn");
-let resetArmed = false, resetTimer = null;
-// Lucide refresh-cw — must match the inline SVG in the #resetBtn markup above.
-// Arming swaps this for a "Reset?" text chip; disarm restores the icon.
-const RESET_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>';
-function disarmReset(){
-  clearTimeout(resetTimer); resetArmed = false;
-  if (resetBtn){ resetBtn.classList.remove("confirm"); resetBtn.innerHTML = RESET_ICON; }
-}
-resetBtn.addEventListener("click", () => {
-  if (game.animating) return;
-  if (!resetArmed){
-    resetArmed = true;
-    resetBtn.classList.add("confirm");
-    resetBtn.textContent = "Reset?";
-    resetTimer = setTimeout(disarmReset, 2000);
-    return;
-  }
-  disarmReset();
-  reset();
-});
+// Reset is a plain labeled button now — one tap restarts (no confirm chip).
+document.getElementById("resetBtn").addEventListener("click", reset);   // reset() ignores taps mid-animation
+
+// "Swipe to move": swiping empty floor takes a directional step. On by default;
+// toggle lives in the How-to-play modal. (Crate drags and tap-to-walk are
+// unaffected either way.)
+const DIRSWIPE_KEY = "spelloban.dirSwipe";
+function dirSwipeOn(){ try { return localStorage.getItem(DIRSWIPE_KEY) !== "0"; } catch { return true; } }
+(function initDirSwipeToggle(){
+  const t = document.getElementById("dirSwipeToggle");
+  if (!t) return;
+  t.checked = dirSwipeOn();
+  t.addEventListener("change", () => { try { localStorage.setItem(DIRSWIPE_KEY, t.checked ? "1" : "0"); } catch {} });
+})();
 
 // how-to-play + stats overlays
 const helpOverlay  = document.getElementById("helpOverlay");
