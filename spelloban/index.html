@@ -880,7 +880,7 @@ function commitMove(dir){
     }
   }
 
-  if (isSolved(next)){ clearProgress(next.id); win(); }
+  if (isSolved(next)){ clearProgress(next.id); win(pushedIdx); }   // wave radiates from the last push
   else saveProgress();                       // snapshot the live board so Play → Resume
   return true;
 }
@@ -1403,24 +1403,26 @@ function clearWinUI(){
 // A solve fires this: block input immediately, celebrate the final piece
 // landing (solved crates bounce in a wave), THEN reveal the result modal —
 // so the last slide gets a beat to be appreciated instead of being cut off.
-function win(){
+function win(pushedIdx){
   game.won = true;
   const perfect = isOptimal(game.state.moves, game.state.meta.optimal);
   if (navigator.vibrate) navigator.vibrate(perfect ? [30,40,30,40,60] : [20,40,20]);
 
-  // Ripple the celebration in SPELLING order (left-to-right / top-to-bottom as the
-  // word reads) by walking slots in index order, not the arbitrary crate-array
-  // order. On a win every slot holds its matching crate, so this maps 1:1.
+  // order = crates in spelling order (slot index). The wave radiates OUTWARD from
+  // the tile that completed the solve: it pops first, then rolls to both sides.
   const order = game.state.slots
     .map(slot => crateIndexAt(game.state, slot.r, slot.c))
     .filter(i => i >= 0);
+  let epi = order.indexOf(pushedIdx);
+  if (epi === -1) epi = Math.floor((order.length - 1) / 2);   // fallback: centre
   const SLIDE = 170, STAGGER = 130;        // wait for the last slide, then wave
   order.forEach((i, k) => setTimeout(() => {
     const el = game.crateEls[i];
     if (el){ el.classList.remove("pop", "celebrate"); void el.offsetWidth; el.classList.add("celebrate"); }
-  }, SLIDE + k * STAGGER));
+  }, SLIDE + Math.abs(k - epi) * STAGGER));
 
-  setTimeout(showWinModal, SLIDE + order.length * STAGGER + 420);
+  const maxDist = Math.max(epi, order.length - 1 - epi);
+  setTimeout(showWinModal, SLIDE + maxDist * STAGGER + 420);
 }
 
 function showWinModal(){
@@ -1889,7 +1891,7 @@ document.getElementById("backHomeBtn").addEventListener("click", openLanding);  
       if (ci >= 0){ used.add(ci); game.state.crates[ci] = { r: slot.r, c: slot.c, letter: game.state.crates[ci].letter }; }
     });
     render();
-    win();                                               // celebration wave → win modal
+    win(Math.floor(Math.random() * game.state.crates.length));   // random epicenter so previews vary
   });
 })();
 
