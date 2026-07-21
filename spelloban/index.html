@@ -166,7 +166,8 @@
   /* push preview ("ghost"): a translucent, dashed landing crate shown while you
      drag a crate directly — the consequence of the push before you commit it.
      Reuses the crate look (gold, or green when it would land on its slot). */
-  .crate.ghost{ z-index:1; pointer-events:none; }   /* inherits .mover's left/top slide */
+  .crate.ghost{ z-index:1; pointer-events:none;
+    transition:left .14s ease-in-out, top .14s ease-in-out; }   /* eased slide */
   .crate.ghost .box{
     background:rgba(228,233,240,.22);   /* faint neutral white/gray — no gold/green "locks in" tell */
     color:rgba(255,255,255,.5);
@@ -175,6 +176,14 @@
     outline-offset:-4px;
     animation:none;
   }
+  /* blocked push: the ghost lunges toward the wall, settles back, then fades */
+  @keyframes ghostBump{
+    0%  { transform:translate(0,0); opacity:1; }
+    38% { transform:translate(var(--bx,0), var(--by,0)); opacity:1; }
+    70% { transform:translate(0,0); opacity:.6; }
+    100%{ transform:translate(0,0); opacity:0; }
+  }
+  .crate.ghost.bump .box{ animation:ghostBump .36s ease-in-out both; }
 
   .player .avatar{
     width:60%;height:60%;border-radius:50%;
@@ -1021,6 +1030,68 @@ function showPushGhost(cr, cc, dir){
   placeMover(ghostEl, br, bc);                   // slide over to the landing cell
 }
 
+// Failed push (crate blocked by a wall/crate): a faint ghost lunges toward the
+// blockage over the crate, settles back and fades — the "it bumped and settled"
+// tell. Removed when the animation ends.
+function bumpGhost(cr, cc, dir){
+  hidePushGhost();
+  const d = DIRS[dir]; if (!d) return;
+  const el = document.createElement("div");
+  el.className = "mover crate ghost bump";
+  const box = document.createElement("div"); box.className = "box";
+  el.appendChild(box); boardEl.appendChild(el);
+  el.style.transition = "none";
+  placeMover(el, cr, cc);                        // over the crate that can't move
+  el.style.setProperty("--bx", (d[1] * 26) + "%");   // nudge toward the blockage
+  el.style.setProperty("--by", (d[0] * 26) + "%");
+  ghostEl = el;
+  box.addEventListener("animationend", () => { if (ghostEl === el) hidePushGhost(); }, { once:true });
+}
+
+// Walk the player to the reachable floor cell nearest `[gr,gc]` — used when the
+// crate's push-from cell can't actually be reached, so we still "try" toward it.
+async function walkClose(gr, gc){
+  if (game.won || game.animating) return;
+  const s = game.state;
+  const ok = (r,c) => !isWall(s,r,c) && crateIndexAt(s,r,c) === -1;
+  const [sr, sc] = s.player, seen = new Set([sr+","+sc]), q = [[sr, sc]];
+  let best = [sr, sc], bestD = Math.abs(sr-gr) + Math.abs(sc-gc);
+  while (q.length){
+    const [r, c] = q.shift();
+    const dd = Math.abs(r-gr) + Math.abs(c-gc);
+    if (dd < bestD){ bestD = dd; best = [r, c]; }
+    for (const k in DIRS){ const [dr,dc] = DIRS[k], nr = r+dr, nc = c+dc, key = nr+","+nc;
+      if (ok(nr,nc) && !seen.has(key)){ seen.add(key); q.push([nr,nc]); } }
+  }
+  if (best[0] !== sr || best[1] !== sc) await walkTo(best[0], best[1]);
+}
+
+// Resolve a crate-drag into one of three feels on release:
+//  • legal push               → walk up + push (ghost slides in, hides once it lands)
+//  • blocked, can reach behind → walk behind, then the ghost bumps the wall & fades
+//  • can't reach behind        → no bump; just walk as close as possible
+async function commitCrateDrag(cr, cc, dir){
+  const s = game.state, d = DIRS[dir];
+  if (!d || game.won || game.animating){ hidePushGhost(); return; }
+  const [dr, dc] = d;
+  const sr = cr - dr, sc = cc - dc;                              // stand cell (behind the crate)
+  const destBlocked = isWall(s, cr+dr, cc+dc) || crateIndexAt(s, cr+dr, cc+dc) !== -1;
+  const standReachable = (sr === s.player[0] && sc === s.player[1]) || findPath(s, sr, sc) !== null;
+
+  if (!destBlocked && standReachable){                          // legal push
+    await walkAndPush(cr, cc, dir);
+    await delay(170);                                           // let the real tile finish sliding in
+    hidePushGhost();
+  } else if (standReachable){                                   // blocked, but reachable → bump
+    hidePushGhost();
+    await walkTo(sr, sc);
+    bumpGhost(cr, cc, dir);
+  } else {                                                      // can't get behind → walk close, no bump
+    hidePushGhost();
+    await walkClose(sr, sc);
+  }
+}
+
 // map a viewport point to a board cell, or null if outside
 function cellFromPoint(x, y){
   const rect = boardEl.getBoundingClientRect();
@@ -1463,19 +1534,14 @@ function toast(msg){
       if (cell) walkTo(cell[0], cell[1]);
       return;
     }
-    // SWIPE / DRAG → a directional step, OR a push if it started on a crate
-    const dir = dirOf(dx, dy);
+    // DRAG resolves only when it started ON a crate → a push. Empty-floor drags
+    // are inert: navigation is tap-to-walk (or arrows/WASD), so drag means one
+    // thing — grab and push a crate.
     const start = startCell || cellFromPoint(sx, sy);
-    if (start && crateIndexAt(game.state, start[0], start[1]) !== -1){
-      // Hold the ghost through the walk-up AND the push, hiding only once the
-      // real crate has finished sliding into the previewed cell (no gap/flicker).
-      await walkAndPush(start[0], start[1], dir);
-      await delay(140);                       // ~one slide (transition is .12s)
+    if (start && crateIndexAt(game.state, start[0], start[1]) !== -1)
+      await commitCrateDrag(start[0], start[1], dirOf(dx, dy));   // legal push / bump / walk-close
+    else
       hidePushGhost();
-    } else {
-      hidePushGhost();
-      doMove(dir);                            // swipe floor → single step
-    }
   });
 })();
 
