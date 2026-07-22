@@ -21,12 +21,13 @@
     --player:#5aa9ff;
     --text:#e7ecf1;
     --muted:#8b96a3;
-    --accent:#5aa9ff;
+    --accent:#3ec46d;   /* primary CTA — green, to match the solved palette (player stays blue) */
     --danger:#e06a5a;
     /* layout budget (shared max width + fixed chrome heights) */
     --maxw:440px;
     --barH:56px;
     --footH:60px;
+    --vpad:0px;          /* extra top/bottom breathing room — desktop only (see media query) */
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{margin:0;height:100%;}
@@ -35,12 +36,14 @@
     color:var(--text);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     display:flex;flex-direction:column;align-items:center;
-    padding:env(safe-area-inset-top) 10px env(safe-area-inset-bottom);
+    padding:calc(env(safe-area-inset-top) + var(--vpad)) 10px calc(env(safe-area-inset-bottom) + var(--vpad));
     min-height:100%;
     overscroll-behavior:none;
     touch-action:manipulation;
     user-select:none;-webkit-user-select:none;
   }
+  /* Phones fill the screen (safe-area only); give desktop/tablet room off the edges. */
+  @media (min-width: 600px){ :root{ --vpad:32px; } }
   /* ---- play screen: 3-row flex column (top bar / stage / controls) ----
      The board is height-budgeted in dvh so the whole screen fits with mobile
      chrome present — no scroll, no squash. The stage flex-grows and centers the
@@ -97,7 +100,7 @@
     /* Height-budgeted so a portrait board fits the visible viewport with mobile
        chrome present. 44px reserves the two 12px gaps + tray padding + slack. */
     --boardH: calc(100dvh - var(--barH) - var(--footH) - 44px
-                   - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+                   - env(safe-area-inset-top) - env(safe-area-inset-bottom) - var(--vpad) * 2);
     --bw: min(92vw, calc(var(--maxw) - 16px), calc(var(--boardH) * var(--cols) / var(--rows)));
     width:var(--bw);
     aspect-ratio: var(--cols) / var(--rows);
@@ -204,7 +207,8 @@
     padding:11px 15px;font-size:14px;cursor:pointer;
   }
   button:active{transform:translateY(1px);}
-  button.primary{background:var(--accent);color:#04101f;border-color:transparent;}
+  button.primary{background:linear-gradient(var(--green-top),var(--green));color:#08361a;border:0;
+    box-shadow:inset 0 -3px 0 rgba(0,0,0,.22), inset 0 3px 0 rgba(255,255,255,.14), 0 2px 4px rgba(0,0,0,.3);}
   button.ghost{background:transparent;}
 
   /* Reset (left) and Undo (right): matching labeled icon buttons */
@@ -286,22 +290,24 @@
     font-weight:800; font-size:11px; line-height:1;
     box-shadow:inset 0 -2px 0 rgba(0,0,0,.22), inset 0 2px 0 rgba(255,255,255,.28); }
   .cratechk::before{ content:"✓"; }
-  .card h2{margin:0 0 16px;font-size:26px;letter-spacing:1px;}
+  .card h2{margin:0 0 10px;font-size:26px;letter-spacing:1px;}
   .card p{color:var(--muted);margin:0 0 8px;}
-  .card .big{font-size:40px;font-weight:800;color:var(--text);margin:0 0 8px;}
+  .card .big{font-size:40px;font-weight:800;color:var(--text);margin:0;}
   .card button{width:100%;margin-top:8px;padding:16px;}
 
   /* completed word rendered as green letter-tiles (matches on-board crates) */
   @keyframes tilePop{ 0%{transform:scale(.5);opacity:0;} 60%{transform:scale(1.12);} 100%{transform:scale(1);opacity:1;} }
 
   /* star rating */
-  .stars{display:flex;gap:8px;justify-content:center;margin:0 0 16px;font-size:30px;line-height:1;}
+  .stars{display:flex;gap:8px;justify-content:center;margin:0 0 10px;font-size:30px;line-height:1;}
   .stars .s{color:#3a424c;}                 /* empty */
   .stars .s.on{color:#ffc93c;text-shadow:0 0 10px rgba(255,201,60,.5);animation:tilePop .4s ease both;}
+  #landStars{font-size:22px;margin:10px 0 0;}   /* landing rating: smaller, and no pop while flipping dates */
+  #landStars .s.on{animation:none;}
   /* "perfect" note — shown only on an optimal solve; the optimal move count
      itself is never revealed, so players discover it. Gold to match. */
   /* per-puzzle record line: your best score + attempt count for this puzzle */
-  .card .record{color:var(--muted);font-size:13px;margin:0 0 16px;}
+  .card .record{color:var(--muted);font-size:13px;margin:4px 0 0;}
   .card .record b{color:var(--text);}
   .card .record.newbest{color:var(--green);font-weight:800;}
   .card .record:empty{display:none;}
@@ -316,9 +322,18 @@
   /* persistent stats line (start + win screens) */
   .statline{color:var(--muted);font-size:12px;line-height:1.6;}
   .statline b{color:var(--text);}
-  #startStatline{margin:16px 0 0;min-height:16px;cursor:pointer;}
+  #playBtn{margin-top:20px;}                  /* seam: puzzle → action */
+  #startStatline{margin:20px 0 0;padding-top:20px;border-top:1px solid rgba(255,255,255,.08);
+    min-height:16px;cursor:pointer;}          /* seam + hairline: action → your stats */
   #startStatline:hover{color:var(--text);}   /* landing statline → Stats modal */
-  #winStatgrid{margin:18px 0 2px;}           /* full stats built into the end screen */
+  /* SOLVED card grouped into zones: Result · Actions · Stats+Next · Menu.
+     Tight within a zone, ~20px seams between; one hairline splits "this solve"
+     from "your stats". */
+  #copyBtn{margin-top:22px;}                                     /* seam: result → actions */
+  #winStatgrid{margin:20px 0 0;padding-top:20px;
+    border-top:1px solid rgba(255,255,255,.08);}                 /* seam + hairline: actions → stats */
+  #winNext{margin:8px 0 0;}                                      /* stats → next (same zone) */
+  #backHomeBtn{margin-top:20px;}                                 /* seam: next → menu */
 
   /* ---------- daily landing (Sealed Crates) — full-screen front door ---------- */
   /* opaque landing — no board leaks behind it */
@@ -327,7 +342,7 @@
      landing owns the viewport — no modal-over-a-modal on first run. */
   body.landing-up .topbar, body.landing-up .stage, body.landing-up .controls{display:none;}
   /* plain-text wordmark for the landing (distinct from the top-bar .brandtext) */
-  .landbrand{font-size:22px;font-weight:800;letter-spacing:4px;color:var(--text);margin:0 0 12px;}
+  .landbrand{font-size:22px;font-weight:800;letter-spacing:4px;color:var(--text);margin:0 0 10px;}
   /* full-screen page feel: strip the card chrome so content sits on the bg */
   .card.landing{background:transparent;border-color:transparent;box-shadow:none;max-width:360px;}
   /* date stepper (visible testing affordance; becomes a past-only archive later) */
@@ -341,16 +356,16 @@
   }
   .datenav .stepper:disabled{opacity:.3;pointer-events:none;}
   .dailysub{color:var(--muted);font-size:13px;margin:0 0 4px;}
-  .datenote{color:var(--accent);font-size:12px;margin:0 0 14px;}
+  .datenote{color:var(--accent);font-size:12px;margin:0;}
   .datenote:empty{display:none;}
   /* last-7-days solved dots (separate from the control-bar letters-placed meter) */
-  .dotstrip{display:flex;gap:8px;justify-content:center;margin:12px 0 0;}
+  .dotstrip{display:flex;gap:8px;justify-content:center;margin:8px 0 0;}
   .dotstrip:empty{display:none;}
   .dotstrip .dot{width:8px;height:8px;border-radius:50%;background:#3a424c;}
   .dotstrip .dot.on{background:var(--green);}
   .testnote{color:var(--muted);opacity:.55;font-size:11px;margin:16px 0 0;}
   /* sealed hero: face-down gold crates (?), or a green reveal once solved */
-  .seal{display:flex;gap:6px;justify-content:center;margin:0 0 16px;}
+  .seal{display:flex;gap:6px;justify-content:center;margin:20px 0 0;}   /* seam: identity → puzzle */
   .seal .t{
     flex:1 1 0;min-width:0;max-width:52px;aspect-ratio:1;border-radius:8px;
     display:flex;align-items:center;justify-content:center;
@@ -360,10 +375,10 @@
     animation:tilePop .3s ease both;
   }
   .seal.solved .t{ background:linear-gradient(var(--green-top),var(--green)); color:#08361a; }
-  .landtag{color:var(--muted);font-size:14px;margin:0 0 18px;}
-  .card .result{color:var(--text);font-weight:700;font-size:15px;margin:0 0 4px;}
+  .card .landtag{color:var(--muted);font-size:14px;margin:10px 0 0;}   /* beat .card p */
+  .card .result{color:var(--text);font-weight:700;font-size:15px;margin:10px 0 0;}
   .card .result:empty{display:none;}
-  .card .countdown{color:var(--muted);font-size:13px;margin:0 0 16px;}
+  .card .countdown{color:var(--muted);font-size:13px;margin:4px 0 0;}
   .card .countdown:empty{display:none;}
   /* corner "?" help affordance on the landing */
   .help{
@@ -452,6 +467,7 @@
     <div class="dailysub" id="dailySub"></div>
     <div class="datenote" id="dateNote"></div>
     <div class="seal" id="sealTiles" role="img" aria-label="Today's puzzle"></div>
+    <div class="stars landstars" id="landStars" aria-hidden="true"></div>
     <p class="landtag" id="landTag">Push the tiles to spell it.</p>
     <div class="result" id="landResult"></div>
     <div class="countdown" id="landCountdown"></div>
@@ -471,15 +487,15 @@
     <div class="stars" id="winStars" aria-hidden="true"></div>
     <div class="big"><span id="winMoves">0</span> moves</div>
     <div class="record" id="winRecord"></div>
-    <button class="primary" id="playAgainBtn">Play again</button>
     <button class="ghost" id="copyBtn">Copy result</button>
-    <button class="ghost" id="backHomeBtn">Menu</button>
-    <div class="nextin" id="winNext"></div>
+    <button class="primary" id="playAgainBtn">Play again</button>
     <div class="statgrid" id="winStatgrid">
       <div><b id="winStPlayed">0</b><span>Solved</span></div>
       <div><b id="winStStreak">0</b><span>Streak</span></div>
       <div><b id="winStBest">0</b><span>Best</span></div>
     </div>
+    <div class="nextin" id="winNext"></div>
+    <button class="ghost" id="backHomeBtn">Menu</button>
   </div>
 </div>
 
@@ -1765,12 +1781,28 @@ function startPuzzle(p){
 // Render the landing for `viewedDate`. States: not-solved (sealed) / solved
 // (green reveal). Only "today" shows a countdown / touches the streak. Never
 // builds the board.
+// Landing star rating: filled per this puzzle's best solve; dim placeholders when
+// unplayed, so the row always holds its space and you can flip dates hunting for
+// puzzles you haven't 3-starred yet.
+function renderLandStars(el, solved, best, optimal){
+  if (!el) return;
+  const n = solved ? starsFor(best, optimal) : 0;
+  el.innerHTML = "";
+  for (let i = 0; i < 3; i++){
+    const s = document.createElement("span");
+    s.className = "s" + (i < n ? " on" : "");
+    s.textContent = i < n ? "★" : "☆";
+    el.appendChild(s);
+  }
+}
+
 function renderLanding(){
   const today = getToday();
   const isToday = viewedDate === today;
   const daily = dailyPuzzle(viewedDate);
   const rec = getRecord(daily.id);
   const solved = rec.best !== null;
+  renderLandStars(document.getElementById("landStars"), solved, rec.best, daily.optimal);
   const diff = dayInfoFor(daily).label;            // difficulty WORD from DAY_INFO (meta.day)
 
   document.getElementById("dailyLine").textContent = prettyDate(viewedDate);
