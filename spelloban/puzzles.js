@@ -12,96 +12,96 @@ window.SPELLOBAN_BAKED = {
       "id": "2026-06-22-mon",
       "terrain": [
         "#######",
+        "####.##",
+        "####.##",
+        "####.##",
+        "#....##",
+        "#....##",
         "#.....#",
         "#.....#",
-        "#.....#",
-        "#.....#",
-        "#.....#",
-        "#.....#",
-        "#.....#",
-        "#.....#",
-        "#.....#",
-        "#.....#",
+        "#..#.##",
+        "#..#.##",
+        "##...##",
         "#######"
       ],
       "slots": [
         {
           "pos": [
-            4,
-            4
-          ],
-          "letter": "L"
-        },
-        {
-          "pos": [
             5,
-            4
+            2
           ],
-          "letter": "O"
+          "letter": "H"
         },
         {
           "pos": [
             6,
-            4
+            2
           ],
-          "letter": "O"
+          "letter": "A"
         },
         {
           "pos": [
             7,
-            4
+            2
           ],
-          "letter": "T"
+          "letter": "R"
+        },
+        {
+          "pos": [
+            8,
+            2
+          ],
+          "letter": "E"
         }
       ],
       "crates": [
         {
           "pos": [
-            4,
-            4
-          ],
-          "letter": "T"
-        },
-        {
-          "pos": [
             5,
-            4
+            2
           ],
-          "letter": "O"
+          "letter": "H"
         },
         {
           "pos": [
             6,
-            4
+            2
           ],
-          "letter": "O"
+          "letter": "E"
         },
         {
           "pos": [
             7,
-            4
+            2
           ],
-          "letter": "L"
+          "letter": "A"
+        },
+        {
+          "pos": [
+            8,
+            2
+          ],
+          "letter": "R"
         }
       ],
       "player": [
-        8,
-        1
+        1,
+        4
       ],
-      "optimal": 30,
-      "anagram": "TOOL",
-      "answer": "LOOT",
+      "optimal": 45,
+      "anagram": "HEAR",
+      "answer": "HARE",
       "meta": {
         "day": "mon",
         "date": "2026-06-22",
-        "M": 43.0,
+        "M": 25.0,
         "D": 0.0,
         "band": [
-          38.7,
-          49.4
+          23.8,
+          30.0
         ],
         "in_band": true,
-        "optimal": 30
+        "optimal": 45
       },
       "name": "Mon \u00b7 2026-06-22"
     },
@@ -303,110 +303,96 @@ window.SPELLOBAN_BAKED = {
       "id": "2026-06-25-thu",
       "terrain": [
         "#######",
-        "##....#",
+        "#######",
+        "###...#",
         "#.....#",
+        "#....##",
+        "###...#",
         "#.....#",
-        "#.....#",
-        "#.....#",
-        "##....#",
-        "#.....#",
-        "#.....#",
-        "#.....#",
-        "#.....#",
+        "#.#...#",
+        "#....##",
+        "#######",
+        "#######",
         "#######"
       ],
       "slots": [
         {
           "pos": [
             4,
-            2
+            3
           ],
-          "letter": "C"
+          "letter": "F"
         },
         {
           "pos": [
             5,
-            2
+            3
           ],
           "letter": "L"
         },
         {
           "pos": [
             6,
-            2
+            3
           ],
-          "letter": "A"
+          "letter": "I"
         },
         {
           "pos": [
             7,
-            2
+            3
           ],
-          "letter": "S"
-        },
-        {
-          "pos": [
-            8,
-            2
-          ],
-          "letter": "P"
+          "letter": "T"
         }
       ],
       "crates": [
         {
           "pos": [
             4,
-            2
-          ],
-          "letter": "S"
-        },
-        {
-          "pos": [
-            5,
-            2
-          ],
-          "letter": "C"
-        },
-        {
-          "pos": [
-            6,
-            2
-          ],
-          "letter": "A"
-        },
-        {
-          "pos": [
-            7,
-            2
+            3
           ],
           "letter": "L"
         },
         {
           "pos": [
-            8,
-            2
+            5,
+            3
           ],
-          "letter": "P"
+          "letter": "I"
+        },
+        {
+          "pos": [
+            6,
+            3
+          ],
+          "letter": "F"
+        },
+        {
+          "pos": [
+            7,
+            3
+          ],
+          "letter": "T"
         }
       ],
       "player": [
-        1,
-        5
+        6,
+        1
       ],
-      "optimal": 48,
-      "anagram": "SCALP",
-      "answer": "CLASP",
+      "optimal": 33,
+      "anagram": "LIFT",
+      "answer": "FLIT",
       "meta": {
         "day": "thu",
         "date": "2026-06-25",
-        "M": 47.5,
+        "M": 28.5,
         "D": 0.0,
         "band": [
-          45.1,
-          58.1
+          27.5,
+          36.2
         ],
         "in_band": true,
-        "optimal": 48
+        "optimal": 33
       },
       "name": "Thu \u00b7 2026-06-25"
     },
@@ -636,110 +622,96 @@ window.SPELLOBAN_BAKED = {
       "id": "2026-06-28-sun",
       "terrain": [
         "#######",
-        "#.....#",
-        "#.....#",
-        "#.....#",
-        "#.....#",
-        "#.....#",
-        "#.....#",
-        "#.....#",
-        "#.....#",
-        "#.....#",
-        "#.....#",
+        "#..####",
+        "##.####",
+        "#...###",
+        "#....##",
+        "#....##",
+        "##...##",
+        "#....##",
+        "#....##",
+        "#...###",
+        "#######",
         "#######"
       ],
       "slots": [
         {
           "pos": [
-            3,
-            4
-          ],
-          "letter": "S"
-        },
-        {
-          "pos": [
-            4,
-            4
-          ],
-          "letter": "P"
-        },
-        {
-          "pos": [
             5,
-            4
+            2
           ],
-          "letter": "O"
+          "letter": "T"
         },
         {
           "pos": [
             6,
-            4
+            2
+          ],
+          "letter": "A"
+        },
+        {
+          "pos": [
+            7,
+            2
           ],
           "letter": "R"
         },
         {
           "pos": [
-            7,
-            4
+            8,
+            2
           ],
-          "letter": "E"
+          "letter": "P"
         }
       ],
       "crates": [
         {
           "pos": [
-            3,
-            4
-          ],
-          "letter": "P"
-        },
-        {
-          "pos": [
-            4,
-            4
+            5,
+            2
           ],
           "letter": "R"
         },
         {
           "pos": [
-            5,
-            4
-          ],
-          "letter": "O"
-        },
-        {
-          "pos": [
             6,
-            4
+            2
           ],
-          "letter": "S"
+          "letter": "A"
         },
         {
           "pos": [
             7,
-            4
+            2
           ],
-          "letter": "E"
+          "letter": "P"
+        },
+        {
+          "pos": [
+            8,
+            2
+          ],
+          "letter": "T"
         }
       ],
       "player": [
-        5,
-        2
+        1,
+        1
       ],
-      "optimal": 34,
-      "anagram": "PROSE",
-      "answer": "SPORE",
+      "optimal": 57,
+      "anagram": "RAPT",
+      "answer": "TARP",
       "meta": {
         "day": "sun",
         "date": "2026-06-28",
-        "M": 25.5,
-        "D": 1.3,
+        "M": 28.5,
+        "D": 2.0,
         "band": [
-          22.9,
-          31.9
+          28.5,
+          37.1
         ],
         "in_band": true,
-        "optimal": 34
+        "optimal": 57
       },
       "name": "Sun \u00b7 2026-06-28"
     },
@@ -747,44 +719,44 @@ window.SPELLOBAN_BAKED = {
       "id": "2026-06-29-mon",
       "terrain": [
         "#######",
-        "#.....#",
-        "#.....#",
-        "#.....#",
-        "#.....#",
-        "#..#..#",
-        "#.....#",
-        "#.....#",
-        "#.....#",
+        "###.###",
+        "###...#",
         "#.....#",
         "#.#...#",
+        "#.....#",
+        "##....#",
+        "##...##",
+        "#######",
+        "#######",
+        "#######",
         "#######"
       ],
       "slots": [
         {
           "pos": [
-            4,
-            2
+            3,
+            4
           ],
-          "letter": "M"
+          "letter": "W"
+        },
+        {
+          "pos": [
+            4,
+            4
+          ],
+          "letter": "A"
         },
         {
           "pos": [
             5,
-            2
+            4
           ],
-          "letter": "O"
+          "letter": "K"
         },
         {
           "pos": [
             6,
-            2
-          ],
-          "letter": "T"
-        },
-        {
-          "pos": [
-            7,
-            2
+            4
           ],
           "letter": "E"
         }
@@ -792,51 +764,51 @@ window.SPELLOBAN_BAKED = {
       "crates": [
         {
           "pos": [
-            4,
-            2
+            3,
+            4
           ],
-          "letter": "T"
+          "letter": "W"
+        },
+        {
+          "pos": [
+            4,
+            4
+          ],
+          "letter": "E"
         },
         {
           "pos": [
             5,
-            2
+            4
           ],
-          "letter": "O"
+          "letter": "A"
         },
         {
           "pos": [
             6,
-            2
+            4
           ],
-          "letter": "M"
-        },
-        {
-          "pos": [
-            7,
-            2
-          ],
-          "letter": "E"
+          "letter": "K"
         }
       ],
       "player": [
         1,
-        1
+        3
       ],
-      "optimal": 35,
-      "anagram": "TOME",
-      "answer": "MOTE",
+      "optimal": 29,
+      "anagram": "WEAK",
+      "answer": "WAKE",
       "meta": {
         "day": "mon",
         "date": "2026-06-29",
-        "M": 24.0,
+        "M": 25.0,
         "D": 0.0,
         "band": [
-          22.8,
-          28.8
+          23.8,
+          30.0
         ],
         "in_band": true,
-        "optimal": 35
+        "optimal": 29
       },
       "name": "Mon \u00b7 2026-06-29"
     },
@@ -1343,96 +1315,96 @@ window.SPELLOBAN_BAKED = {
       "id": "2026-07-05-sun",
       "terrain": [
         "#######",
-        "#.#...#",
+        "#######",
         "#....##",
-        "#.....#",
-        "#.....#",
-        "#.....#",
-        "#.....#",
-        "#.....#",
-        "#.....#",
-        "#.....#",
-        "#...#.#",
+        "#....##",
+        "##...##",
+        "#....##",
+        "#...###",
+        "#...###",
+        "##.####",
+        "#######",
+        "#######",
         "#######"
       ],
       "slots": [
         {
           "pos": [
-            4,
-            3
+            3,
+            2
           ],
-          "letter": "G"
+          "letter": "P"
         },
         {
           "pos": [
-            5,
-            3
+            4,
+            2
           ],
           "letter": "O"
         },
         {
           "pos": [
-            6,
-            3
+            5,
+            2
           ],
-          "letter": "R"
+          "letter": "S"
         },
         {
           "pos": [
-            7,
-            3
+            6,
+            2
           ],
-          "letter": "Y"
+          "letter": "T"
         }
       ],
       "crates": [
         {
           "pos": [
+            3,
+            2
+          ],
+          "letter": "S"
+        },
+        {
+          "pos": [
             4,
-            3
+            2
+          ],
+          "letter": "P"
+        },
+        {
+          "pos": [
+            5,
+            2
           ],
           "letter": "O"
         },
         {
           "pos": [
-            5,
-            3
-          ],
-          "letter": "R"
-        },
-        {
-          "pos": [
             6,
-            3
+            2
           ],
-          "letter": "G"
-        },
-        {
-          "pos": [
-            7,
-            3
-          ],
-          "letter": "Y"
+          "letter": "T"
         }
       ],
       "player": [
-        9,
-        1
+        8,
+        2
       ],
-      "optimal": 26,
-      "anagram": "ORGY",
-      "answer": "GORY",
+      "optimal": 44,
+      "anagram": "SPOT",
+      "answer": "POST",
       "meta": {
         "day": "sun",
         "date": "2026-07-05",
-        "M": 25.0,
-        "D": 1.1,
+        "M": 32.0,
+        "D": 1.4,
         "band": [
-          25.0,
-          32.5
+          32.0,
+          41.6
         ],
         "in_band": true,
-        "optimal": 26
+        "optimal": 44
       },
       "name": "Sun \u00b7 2026-07-05"
     },
@@ -1442,7 +1414,7 @@ window.SPELLOBAN_BAKED = {
         "#######",
         "#######",
         "#######",
-        "##...##",
+        "#######",
         "##...##",
         "##....#",
         "##....#",
@@ -1458,7 +1430,7 @@ window.SPELLOBAN_BAKED = {
             4,
             4
           ],
-          "letter": "L"
+          "letter": "B"
         },
         {
           "pos": [
@@ -1472,14 +1444,14 @@ window.SPELLOBAN_BAKED = {
             6,
             4
           ],
-          "letter": "O"
+          "letter": "W"
         },
         {
           "pos": [
             7,
             4
           ],
-          "letter": "T"
+          "letter": "L"
         }
       ],
       "crates": [
@@ -1488,14 +1460,14 @@ window.SPELLOBAN_BAKED = {
             4,
             4
           ],
-          "letter": "T"
+          "letter": "B"
         },
         {
           "pos": [
             5,
             4
           ],
-          "letter": "O"
+          "letter": "L"
         },
         {
           "pos": [
@@ -1509,27 +1481,27 @@ window.SPELLOBAN_BAKED = {
             7,
             4
           ],
-          "letter": "L"
+          "letter": "W"
         }
       ],
       "player": [
         8,
         1
       ],
-      "optimal": 46,
-      "anagram": "TOOL",
-      "answer": "LOOT",
+      "optimal": 29,
+      "anagram": "BLOW",
+      "answer": "BOWL",
       "meta": {
         "day": "mon",
         "date": "2026-07-06",
-        "M": 43.0,
+        "M": 25.0,
         "D": 0.0,
         "band": [
-          40.9,
-          51.6
+          23.8,
+          30.0
         ],
         "in_band": true,
-        "optimal": 46
+        "optimal": 29
       },
       "name": "Mon \u00b7 2026-07-06"
     },
@@ -2044,7 +2016,7 @@ window.SPELLOBAN_BAKED = {
         "#...#.#",
         "#.....#",
         "#....##",
-        "#.##.##",
+        "#.#..##",
         "#....##",
         "#######"
       ],
@@ -2054,14 +2026,14 @@ window.SPELLOBAN_BAKED = {
             5,
             3
           ],
-          "letter": "L"
+          "letter": "M"
         },
         {
           "pos": [
             6,
             3
           ],
-          "letter": "O"
+          "letter": "E"
         },
         {
           "pos": [
@@ -2075,7 +2047,7 @@ window.SPELLOBAN_BAKED = {
             8,
             3
           ],
-          "letter": "E"
+          "letter": "A"
         }
       ],
       "crates": [
@@ -2091,41 +2063,41 @@ window.SPELLOBAN_BAKED = {
             6,
             3
           ],
-          "letter": "O"
+          "letter": "E"
         },
         {
           "pos": [
             7,
             3
           ],
-          "letter": "L"
+          "letter": "A"
         },
         {
           "pos": [
             8,
             3
           ],
-          "letter": "E"
+          "letter": "M"
         }
       ],
       "player": [
         1,
         1
       ],
-      "optimal": 45,
-      "anagram": "SOLE",
-      "answer": "LOSE",
+      "optimal": 54,
+      "anagram": "SEAM",
+      "answer": "MESA",
       "meta": {
         "day": "sun",
         "date": "2026-07-12",
-        "M": 24.0,
-        "D": 1.5,
+        "M": 28.5,
+        "D": 1.2,
         "band": [
-          24.0,
-          31.2
+          28.5,
+          37.1
         ],
         "in_band": true,
-        "optimal": 45
+        "optimal": 54
       },
       "name": "Sun \u00b7 2026-07-12"
     }

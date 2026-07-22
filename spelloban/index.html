@@ -302,7 +302,7 @@
   .stars{display:flex;gap:8px;justify-content:center;margin:0 0 10px;font-size:30px;line-height:1;}
   .stars .s{color:#3a424c;}                 /* empty */
   .stars .s.on{color:#ffc93c;text-shadow:0 0 10px rgba(255,201,60,.5);animation:tilePop .4s ease both;}
-  #landStars{font-size:22px;margin:10px 0 0;}   /* landing rating: smaller, and no pop while flipping dates */
+  #landStars{margin:20px 0 0;}   /* landing rating: same size/classes as the win card; zone seam above; no pop while flipping dates */
   #landStars .s.on{animation:none;}
   /* "perfect" note — shown only on an optimal solve; the optimal move count
      itself is never revealed, so players discover it. Gold to match. */
@@ -341,8 +341,16 @@
   /* while the landing is up, the play surfaces are HIDDEN (not dimmed) so the
      landing owns the viewport — no modal-over-a-modal on first run. */
   body.landing-up .topbar, body.landing-up .stage, body.landing-up .controls{display:none;}
-  /* plain-text wordmark for the landing (distinct from the top-bar .brandtext) */
-  .landbrand{font-size:22px;font-weight:800;letter-spacing:4px;color:var(--text);margin:0 0 10px;}
+  /* landing wordmark as small gold letter-crates (echoes the pushable pieces) */
+  .landbrand{display:flex;gap:4px;justify-content:center;margin:0 0 10px;}
+  .landbrand .t{
+    flex:0 0 auto;width:clamp(24px,7.4vw,30px);aspect-ratio:1;border-radius:6px;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:clamp(13px,4vw,16px);color:var(--crate-text);
+    background:linear-gradient(var(--crate-top),var(--crate));
+    box-shadow:inset 0 -2px 0 rgba(0,0,0,.22), inset 0 2px 0 rgba(255,255,255,.28), 0 2px 4px rgba(0,0,0,.3);
+    animation:tilePop .3s ease both;
+  }
   /* full-screen page feel: strip the card chrome so content sits on the bg */
   .card.landing{background:transparent;border-color:transparent;box-shadow:none;max-width:360px;}
   /* date stepper (visible testing affordance; becomes a past-only archive later) */
@@ -364,17 +372,6 @@
   .dotstrip .dot{width:8px;height:8px;border-radius:50%;background:#3a424c;}
   .dotstrip .dot.on{background:var(--green);}
   .testnote{color:var(--muted);opacity:.55;font-size:11px;margin:16px 0 0;}
-  /* sealed hero: face-down gold crates (?), or a green reveal once solved */
-  .seal{display:flex;gap:6px;justify-content:center;margin:20px 0 0;}   /* seam: identity → puzzle */
-  .seal .t{
-    flex:1 1 0;min-width:0;max-width:52px;aspect-ratio:1;border-radius:8px;
-    display:flex;align-items:center;justify-content:center;
-    font-weight:800;font-size:clamp(18px,7vw,26px);color:var(--crate-text);
-    background:linear-gradient(var(--crate-top),var(--crate));
-    box-shadow:inset 0 -3px 0 rgba(0,0,0,.22), inset 0 3px 0 rgba(255,255,255,.28), 0 2px 4px rgba(0,0,0,.3);
-    animation:tilePop .3s ease both;
-  }
-  .seal.solved .t{ background:linear-gradient(var(--green-top),var(--green)); color:#08361a; }
   .card .landtag{color:var(--muted);font-size:14px;margin:10px 0 0;}   /* beat .card p */
   .card .result{color:var(--text);font-weight:700;font-size:15px;margin:10px 0 0;}
   .card .result:empty{display:none;}
@@ -458,7 +455,7 @@
 <div class="overlay solid show" id="startOverlay">
   <button class="help" id="landHelpBtn" aria-label="How to play">?</button>
   <div class="card landing">
-    <div class="landbrand">SPELLOBAN</div>
+    <div class="landbrand" id="landBrand" role="img" aria-label="Spelloban"></div>
     <div class="datenav">
       <button class="stepper" id="datePrev" aria-label="Previous day">‹</button>
       <span class="dailyline" id="dailyLine"></span>
@@ -466,7 +463,6 @@
     </div>
     <div class="dailysub" id="dailySub"></div>
     <div class="datenote" id="dateNote"></div>
-    <div class="seal" id="sealTiles" role="img" aria-label="Today's puzzle"></div>
     <div class="stars landstars" id="landStars" aria-hidden="true"></div>
     <p class="landtag" id="landTag">Push the tiles to spell it.</p>
     <div class="result" id="landResult"></div>
@@ -1754,17 +1750,20 @@ function prettyDate(dateStr){
 let viewedDate = getToday();
 // hero crate row: face-down gold "?" per letter (length tease, word hidden),
 // or a green reveal once solved.
-function renderSeal(container, answer, solved){
-  container.classList.toggle("solved", !!solved);
-  container.innerHTML = "";
-  [...(answer || "")].forEach((ch, i) => {
+// Build the SPELLOBAN wordmark once as small gold letter-crates. Static, so it's
+// rendered at load (not per date-flip) — the tilePop reveal plays a single time.
+function buildBrandTiles(){
+  const el = document.getElementById("landBrand");
+  if (!el || el.childElementCount) return;
+  [..."SPELLOBAN"].forEach((ch, i) => {
     const t = document.createElement("div");
     t.className = "t";
-    t.textContent = solved ? ch : "?";
-    t.style.animationDelay = (i * 55) + "ms";
-    container.appendChild(t);
+    t.textContent = ch;
+    t.style.animationDelay = (i * 45) + "ms";
+    el.appendChild(t);
   });
 }
+buildBrandTiles();
 
 // SURFACE SWAP: hide the landing, reveal the play surfaces, THEN build the board
 // (lazy — nothing lived behind the seal). Restores a saved snapshot if any, and
@@ -1815,9 +1814,6 @@ function renderLanding(){
   noteEl.innerHTML = isToday ? ""
     : "Won't affect your streak" + (solved ? ` · your best <b>${rec.best}</b>` : "");
 
-  const sealEl = document.getElementById("sealTiles");
-  renderSeal(sealEl, daily.answer, solved);
-
   const tagEl = document.getElementById("landTag");
   const resEl = document.getElementById("landResult");
   const cdEl  = document.getElementById("landCountdown");
@@ -1835,7 +1831,6 @@ function renderLanding(){
     // in-play "See result" pill → win card.)
     playBtn.textContent = "▶ Play again";
     playBtn.onclick = () => startPuzzle(daily);
-    sealEl.onclick = () => startPuzzle(daily);
   } else {
     const inProgress = !!loadProgress(daily.id);
     tagEl.style.display = inProgress ? "none" : "";
@@ -1843,7 +1838,6 @@ function renderLanding(){
     stopCountdown(); cdEl.textContent = "";
     playBtn.textContent = inProgress ? "▶ Resume" : "▶ Play";
     playBtn.onclick = () => startPuzzle(daily);
-    sealEl.onclick = () => startPuzzle(daily);   // tapping the sealed crates = bonus Play
     // In progress → offer a secondary Restart: drop the saved snapshot, start fresh.
     restartBtn.style.display = inProgress ? "" : "none";
     restartBtn.onclick = () => { clearProgress(daily.id); startPuzzle(daily); };
