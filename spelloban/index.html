@@ -302,7 +302,7 @@
   .stars{display:flex;gap:8px;justify-content:center;margin:0 0 10px;font-size:30px;line-height:1;}
   .stars .s{color:#3a424c;}                 /* empty */
   .stars .s.on{color:#ffc93c;text-shadow:0 0 10px rgba(255,201,60,.5);animation:tilePop .4s ease both;}
-  #landStars{margin:20px 0 0;}   /* landing rating: same size/classes as the win card; zone seam above; no pop while flipping dates */
+  #landStars{margin:12px 0 0;}   /* landing rating inside the date panel; same size/classes as the win card; no pop while flipping dates */
   #landStars .s.on{animation:none;}
   /* "perfect" note — shown only on an optimal solve; the optimal move count
      itself is never revealed, so players discover it. Gold to match. */
@@ -319,13 +319,24 @@
   .confetti{position:absolute;top:-14px;width:8px;height:13px;border-radius:2px;pointer-events:none;z-index:55;animation:conffall linear forwards;}
   @keyframes conffall{ to{ transform:translateY(110vh) rotate(var(--spin,540deg)); opacity:0; } }
 
-  /* persistent stats line (start + win screens) */
+  /* persistent stats line (win screen) */
   .statline{color:var(--muted);font-size:12px;line-height:1.6;}
   .statline b{color:var(--text);}
   #playBtn{margin-top:20px;}                  /* seam: puzzle → action */
-  #startStatline{margin:20px 0 0;padding-top:20px;border-top:1px solid rgba(255,255,255,.08);
-    min-height:16px;cursor:pointer;}          /* seam + hairline: action → your stats */
-  #startStatline:hover{color:var(--text);}   /* landing statline → Stats modal */
+  /* streak module: YOUR daily streak (🔥 count + 7-dot week) — identity, top of landing.
+     Borderless (contrasts the bordered date panel); tap → Stats modal. */
+  .streak{margin:20px 0 0;cursor:pointer;}
+  .streak:hover .streakcount b{filter:brightness(1.08);}
+  .streak:focus-visible{outline:2px solid var(--text);outline-offset:2px;border-radius:8px;}
+  .streakcount{display:flex;align-items:center;justify-content:center;gap:6px;line-height:1;}
+  .streakcount .fire{font-size:20px;}
+  .streakcount b{font-size:28px;font-weight:800;color:var(--crate);}
+  .streakcount .streaklbl{font-size:14px;color:var(--muted);}
+  .streakstart{font-size:14px;color:var(--muted);}
+  .streakdots{display:flex;gap:8px;justify-content:center;margin:10px 0 0;}
+  .streakdots .dot{width:8px;height:8px;border-radius:50%;background:#3a424c;}
+  .streakdots .dot.on{background:var(--green);}
+  .streakdots .dot.today{background:#3a424c;box-shadow:0 0 0 1.5px var(--crate);}
   /* SOLVED card grouped into zones: Result · Actions · Stats+Next · Menu.
      Tight within a zone, ~20px seams between; one hairline splits "this solve"
      from "your stats". */
@@ -342,15 +353,19 @@
      landing owns the viewport — no modal-over-a-modal on first run. */
   body.landing-up .topbar, body.landing-up .stage, body.landing-up .controls{display:none;}
   /* landing wordmark: plain bold text (logo design punted) */
-  .landbrand{font-weight:800;font-size:24px;letter-spacing:4px;color:var(--text);margin:0 0 10px;}
+  .landbrand{font-weight:800;font-size:24px;letter-spacing:4px;color:var(--text);margin:0;}
   /* full-screen page feel: strip the card chrome so content sits on the bg */
   .card.landing{background:transparent;border-color:transparent;box-shadow:none;max-width:360px;}
+  /* the date + difficulty + rating grouped into one panel */
+  .datecard{background:var(--panel);border:1px solid #2c333b;border-radius:16px;padding:16px 16px 18px;margin:20px 0 0;}
   /* date stepper (visible testing affordance; becomes a past-only archive later) */
-  .datenav{display:flex;align-items:center;justify-content:center;gap:12px;margin:0 0 4px;}
-  .dailyline{color:var(--text);font-weight:700;font-size:15px;margin:0;}
-  /* the date label doubles as the archive-calendar opener (calendar glyph = hint) */
-  .daypick{display:inline-flex;align-items:center;gap:7px;background:transparent;border:0;margin:0;padding:2px 4px;cursor:pointer;}
-  .daypick .calicon{color:var(--muted);flex:0 0 auto;}
+  .datenav{display:flex;align-items:center;justify-content:center;gap:12px;margin:0;}
+  .dailyline{color:var(--text);font-weight:700;font-size:15px;margin:0;text-align:center;}
+  /* the date label doubles as the archive-calendar opener (calendar glyph = hint).
+     Grid with a mirror column right of the text so the date sits dead-centre
+     despite the leading icon. */
+  .daypick{display:grid;grid-template-columns:15px auto 15px;column-gap:7px;align-items:center;background:transparent;border:0;margin:0;padding:7px 8px;cursor:pointer;}
+  .daypick .calicon{color:var(--muted);}
   .daypick:active{transform:translateY(1px);}
   .daypick:focus-visible{outline:2px solid var(--text);outline-offset:2px;border-radius:6px;}
   .datenav .stepper{
@@ -360,14 +375,7 @@
     background:var(--panel);border:1px solid #2c333b;color:var(--text);
   }
   .datenav .stepper:disabled{opacity:.3;pointer-events:none;}
-  .dailysub{color:var(--muted);font-size:13px;margin:0 0 4px;}
-  .datenote{color:var(--accent);font-size:12px;margin:0;}
-  .datenote:empty{display:none;}
-  /* last-7-days solved dots (separate from the control-bar letters-placed meter) */
-  .dotstrip{display:flex;gap:8px;justify-content:center;margin:8px 0 0;}
-  .dotstrip:empty{display:none;}
-  .dotstrip .dot{width:8px;height:8px;border-radius:50%;background:#3a424c;}
-  .dotstrip .dot.on{background:var(--green);}
+  .dailysub{color:var(--muted);font-size:13px;margin:8px 0 0;}
   /* ---- archive calendar (month grid; color tier = mastery, glyph = redundant signal) ---- */
   .card.archive{max-width:340px;}
   .monthnav{display:flex;align-items:center;justify-content:center;gap:14px;margin:2px 0 14px;}
@@ -382,7 +390,7 @@
     background:transparent;border:1px solid transparent;
   }
   .calcell .g{font-size:9px;font-weight:700;height:10px;margin-top:2px;}
-  .calcell.three{background:linear-gradient(var(--green-top),var(--green));color:var(--crate-text);
+  .calcell.three{background:linear-gradient(var(--green-top),var(--green));color:#08361a;
     box-shadow:inset 0 -2px 0 rgba(0,0,0,.22), inset 0 2px 0 rgba(255,255,255,.24);}
   .calcell.two{background:linear-gradient(var(--crate-top),var(--crate));color:var(--crate-text);
     box-shadow:inset 0 -2px 0 rgba(0,0,0,.22), inset 0 2px 0 rgba(255,255,255,.24);}
@@ -399,10 +407,10 @@
   .callegend i.two{background:var(--crate);}
   .callegend i.none{border:1px solid #2c333b;}
   .testnote{color:var(--muted);opacity:.55;font-size:11px;margin:16px 0 0;}
-  .card .landtag{color:var(--muted);font-size:14px;margin:10px 0 0;}   /* beat .card p */
-  .card .result{color:var(--text);font-weight:700;font-size:15px;margin:10px 0 0;}
+  .card .landtag{color:var(--muted);font-size:14px;margin:6px 0 0;}   /* subtitle under the logo; beat .card p */
+  .card .result{color:var(--text);font-weight:700;font-size:15px;margin:12px 0 0;}   /* inside the panel: this puzzle's outcome, under the stars */
   .card .result:empty{display:none;}
-  .card .countdown{color:var(--muted);font-size:13px;margin:4px 0 0;}
+  .card .countdown{color:var(--muted);font-size:13px;margin:16px 0 0;}   /* outside: next-puzzle timer, seam from the panel */
   .card .countdown:empty{display:none;}
   /* corner "?" help affordance on the landing */
   .help{
@@ -448,7 +456,7 @@
     <div class="brandtext">
       <div class="kicker" id="kicker">SPELLOBAN</div>
       <div class="dayline">
-        <span class="meter" id="meter"></span>
+        <span class="meter" id="meter" aria-hidden="true"></span>
       </div>
     </div>
   </div>
@@ -483,24 +491,24 @@
   <button class="help" id="landHelpBtn" aria-label="How to play">?</button>
   <div class="card landing">
     <div class="landbrand">SPELLOBAN</div>
-    <div class="datenav">
-      <button class="stepper" id="datePrev" aria-label="Previous day">‹</button>
-      <button class="daypick" id="dayPick" aria-label="Browse the archive calendar">
-        <svg class="calicon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg>
-        <span class="dailyline" id="dailyLine"></span>
-      </button>
-      <button class="stepper" id="dateNext" aria-label="Next day">›</button>
+    <p class="landtag">Daily anagram, solved one push at a time.</p>
+    <div class="streak" id="landStreak" role="img" aria-label=""></div>
+    <div class="datecard">
+      <div class="datenav">
+        <button class="stepper" id="datePrev" aria-label="Previous day">‹</button>
+        <button class="daypick" id="dayPick" aria-label="Browse the archive calendar">
+          <svg class="calicon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg>
+          <span class="dailyline" id="dailyLine"></span>
+        </button>
+        <button class="stepper" id="dateNext" aria-label="Next day">›</button>
+      </div>
+      <div class="dailysub" id="dailySub"></div>
+      <div class="stars landstars" id="landStars" aria-hidden="true"></div>
+      <div class="result" id="landResult"></div>
     </div>
-    <div class="dailysub" id="dailySub"></div>
-    <div class="datenote" id="dateNote"></div>
-    <div class="stars landstars" id="landStars" aria-hidden="true"></div>
-    <p class="landtag" id="landTag">Solve the anagram, one push at a time.</p>
-    <div class="result" id="landResult"></div>
     <div class="countdown" id="landCountdown"></div>
     <button class="primary" id="playBtn">▶ Play</button>
     <button class="ghost" id="restartBtn" style="display:none">↻ Restart</button>
-    <div class="statline" id="startStatline"></div>
-    <div class="dotstrip" id="dotStrip"></div>
     <div class="testnote">⚙ Testing — step ‹ › to preview any day</div>
   </div>
 </div>
@@ -1258,21 +1266,33 @@ function addDays(dateStr, delta){
   return `${t.getUTCFullYear()}-${String(t.getUTCMonth()+1).padStart(2,"0")}-${String(t.getUTCDate()).padStart(2,"0")}`;
 }
 // last-7-days solved dots (most recent = rightmost), reflecting real calendar days
-function dotStripHTML(){
-  const s = loadStats();
-  if (!s.played) return "";
-  const hist = new Set(s.history || []);
+// Landing streak module: a prominent 🔥 count + a 7-dot week (last 7 days). Built
+// from stats ONLY (never viewedDate) so it reads as YOUR ongoing daily streak,
+// identical on today and archive views. Zero-streak shows a start prompt, never
+// "🔥 0". Decorative visuals; the container's aria-label is the single readout.
+function renderStreak(s){
+  const el = document.getElementById("landStreak");
+  if (!el) return;
   const today = getToday();
-  let dots = "";
+  const hist = new Set(s.history || []);
+  let dots = "", solvedCount = 0;
   for (let i = 6; i >= 0; i--){
     const d = addDays(today, -i);
-    dots += `<span class="dot${hist.has(d) ? " on" : ""}"></span>`;
+    const on = hist.has(d);
+    if (on) solvedCount++;
+    dots += `<span class="dot${on ? " on" : (d === today ? " today" : "")}"></span>`;
   }
-  return dots;
-}
-function statsHTML(s){
-  if (!s.played) return "";
-  return `Played <b>${s.played}</b> · 🔥 Streak <b>${s.curStreak}</b> <span style="opacity:.7">(longest ${s.bestStreak})</span>`;
+  let head, label;
+  if (s.curStreak >= 1){
+    head = `<div class="streakcount"><span class="fire">🔥</span><b>${s.curStreak}</b><span class="streaklbl">day streak</span></div>`;
+    label = `${s.curStreak} day streak. ${solvedCount} of the last 7 days solved.`;
+  } else {
+    head = `<div class="streakstart">${s.played ? "Start a new streak — solve today" : "Start your streak — solve today"}</div>`;
+    label = s.played ? "Streak broken. Solve today to start a new one."
+                     : "No streak yet. Solve today to start one.";
+  }
+  el.setAttribute("aria-label", label);
+  el.innerHTML = head + `<div class="streakdots">${dots}</div>`;
 }
 
 // don't touch persisted records on the unit-test page
@@ -1712,7 +1732,7 @@ function openStats(){
 // One canonical Stats view: the board 📊 icon AND the inline statlines (landing +
 // win card) all open the same modal — no separate stat renders to keep in sync.
 document.getElementById("statsBtn").addEventListener("click", openStats);
-document.getElementById("startStatline").addEventListener("click", openStats);
+document.getElementById("landStreak").addEventListener("click", openStats);
 document.getElementById("statsCloseBtn").addEventListener("click", hideStats);
 document.getElementById("statsDoneBtn").addEventListener("click", hideStats);
 statsOverlay.addEventListener("click", (e) => { if (e.target === statsOverlay) hideStats(); });
@@ -1843,14 +1863,8 @@ function renderLanding(){
   document.getElementById("dailyLine").textContent = prettyDate(viewedDate);
   const sub = ["#" + puzzleNumber(viewedDate)];
   if (diff) sub.push(diff);
-  if (!isToday) sub.push("not today");
   document.getElementById("dailySub").textContent = sub.join(" · ");
 
-  const noteEl = document.getElementById("dateNote");
-  noteEl.innerHTML = isToday ? ""
-    : "Won't affect your streak" + (solved ? ` · your best <b>${rec.best}</b>` : "");
-
-  const tagEl = document.getElementById("landTag");
   const resEl = document.getElementById("landResult");
   const cdEl  = document.getElementById("landCountdown");
   const playBtn = document.getElementById("playBtn");
@@ -1858,7 +1872,6 @@ function renderLanding(){
 
   if (solved){
     restartBtn.style.display = "none";
-    tagEl.style.display = "none";
     resEl.innerHTML = isToday ? `✓ Solved in <b>${rec.best}</b> moves`
                               : `✓ Best <b>${rec.best}</b> moves`;
     if (isToday) startCountdown(cdEl); else { stopCountdown(); cdEl.textContent = ""; }
@@ -1869,7 +1882,6 @@ function renderLanding(){
     playBtn.onclick = () => startPuzzle(daily);
   } else {
     const inProgress = !!loadProgress(daily.id);
-    tagEl.style.display = inProgress ? "none" : "";
     resEl.innerHTML = inProgress ? `In progress · <b>${loadProgress(daily.id).moves}</b> moves` : "";
     stopCountdown(); cdEl.textContent = "";
     playBtn.textContent = inProgress ? "▶ Resume" : "▶ Play";
@@ -1879,8 +1891,7 @@ function renderLanding(){
     restartBtn.onclick = () => { clearProgress(daily.id); startPuzzle(daily); };
   }
 
-  document.getElementById("startStatline").innerHTML = statsHTML(loadStats());
-  document.getElementById("dotStrip").innerHTML = dotStripHTML();
+  renderStreak(loadStats());
 }
 
 // date stepper — both directions while testing (becomes past-only at production)
@@ -1907,29 +1918,34 @@ function buildCalCell(dateStr, dayNum, today){
   const cell = document.createElement("button");
   cell.type = "button"; cell.className = "calcell";
   const num = document.createElement("span"); num.textContent = dayNum; cell.appendChild(num);
-  let glyph = "", interactive = false;
-  if (dateStr > today || dateStr < PUZZLE_EPOCH){
-    cell.classList.add("void");
+  let glyph = "", interactive = false, status;
+  if (dateStr > today){
+    cell.classList.add("void"); status = "not yet";
+  } else if (dateStr < PUZZLE_EPOCH){
+    cell.classList.add("void"); status = "no puzzle";
   } else {
     const p = archiveDaily(dateStr);
     if (!p){
-      cell.classList.add("void");
+      cell.classList.add("void"); status = "no puzzle";
     } else {
       const rec = getRecord(p.id);
       if (rec.best === null){
-        if (loadProgress(p.id)){ cell.classList.add("progress"); glyph = "…"; }
-        else cell.classList.add("unplayed");
+        if (loadProgress(p.id)){ cell.classList.add("progress"); glyph = "…"; status = "in progress"; }
+        else { cell.classList.add("unplayed"); status = "unplayed"; }
       } else {
         // colored either tier = solved; green = mastered (3★), gold = come back (1–2★).
-        if (starsFor(rec.best, p.optimal) === 3){ cell.classList.add("three"); glyph = "✓"; }
-        else { cell.classList.add("two"); glyph = "★"; }
+        const s = starsFor(rec.best, p.optimal);
+        if (s === 3){ cell.classList.add("three"); glyph = "✓"; status = "solved, 3 stars"; }
+        else { cell.classList.add("two"); glyph = "★"; status = `solved, ${s} star${s === 1 ? "" : "s"}`; }
       }
       interactive = true;
       cell.addEventListener("click", () => { viewedDate = dateStr; hideArchive(); renderLanding(); });
     }
   }
-  if (glyph){ const g = document.createElement("span"); g.className = "g"; g.textContent = glyph; cell.appendChild(g); }
-  if (dateStr === today) cell.classList.add("today");   // ring even when un-baked (informational)
+  // glyph is decorative — the state is carried by the cell's aria-label instead.
+  if (glyph){ const g = document.createElement("span"); g.className = "g"; g.setAttribute("aria-hidden", "true"); g.textContent = glyph; cell.appendChild(g); }
+  if (dateStr === today){ cell.classList.add("today"); status = "today, " + status; }   // ring even when un-baked (informational)
+  cell.setAttribute("aria-label", `${prettyDate(dateStr)} — ${status}`);
   if (!interactive) cell.disabled = true;
   return cell;
 }
@@ -2060,8 +2076,7 @@ document.getElementById("loadPasteBtn").addEventListener("click", () => {
 // Serverless progress: hydrate FB Instant cloud data (if present), then refresh
 // the stat line if the landing is up. Non-blocking — standalone play is unaffected.
 Platform.init().then(() => {
-  const el = document.getElementById("startStatline");
-  if (el && startOverlay.classList.contains("show")) el.innerHTML = statsHTML(loadStats());
+  if (startOverlay.classList.contains("show")) renderStreak(loadStats());
 });
 
 /* ============================================================
