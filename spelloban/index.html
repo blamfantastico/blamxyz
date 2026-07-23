@@ -348,6 +348,11 @@
   /* date stepper (visible testing affordance; becomes a past-only archive later) */
   .datenav{display:flex;align-items:center;justify-content:center;gap:12px;margin:0 0 4px;}
   .dailyline{color:var(--text);font-weight:700;font-size:15px;margin:0;}
+  /* the date label doubles as the archive-calendar opener (calendar glyph = hint) */
+  .daypick{display:inline-flex;align-items:center;gap:7px;background:transparent;border:0;margin:0;padding:2px 4px;cursor:pointer;}
+  .daypick .calicon{color:var(--muted);flex:0 0 auto;}
+  .daypick:active{transform:translateY(1px);}
+  .daypick:focus-visible{outline:2px solid var(--text);outline-offset:2px;border-radius:6px;}
   .datenav .stepper{
     flex:0 0 auto;width:34px;height:34px;margin:0;padding:0;border-radius:50%;
     font-size:18px;font-weight:800;line-height:1;
@@ -363,6 +368,36 @@
   .dotstrip:empty{display:none;}
   .dotstrip .dot{width:8px;height:8px;border-radius:50%;background:#3a424c;}
   .dotstrip .dot.on{background:var(--green);}
+  /* ---- archive calendar (month grid; color tier = mastery, glyph = redundant signal) ---- */
+  .card.archive{max-width:340px;}
+  .monthnav{display:flex;align-items:center;justify-content:center;gap:14px;margin:2px 0 14px;}
+  .monthnav .monthlabel{color:var(--text);font-weight:700;font-size:15px;min-width:118px;}
+  .calgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;}
+  .calgrid .wd{color:var(--muted);font-size:11px;font-weight:700;text-align:center;padding:0 0 4px;}
+  .calgrid .blank{aspect-ratio:1;}
+  .calcell{
+    aspect-ratio:1;min-width:0;border-radius:8px;padding:0;margin:0;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;
+    font-size:14px;font-weight:800;color:var(--muted);
+    background:transparent;border:1px solid transparent;
+  }
+  .calcell .g{font-size:9px;font-weight:700;height:10px;margin-top:2px;}
+  .calcell.three{background:linear-gradient(var(--green-top),var(--green));color:var(--crate-text);
+    box-shadow:inset 0 -2px 0 rgba(0,0,0,.22), inset 0 2px 0 rgba(255,255,255,.24);}
+  .calcell.two{background:linear-gradient(var(--crate-top),var(--crate));color:var(--crate-text);
+    box-shadow:inset 0 -2px 0 rgba(0,0,0,.22), inset 0 2px 0 rgba(255,255,255,.24);}
+  .calcell.progress{border:1px dashed var(--crate);color:var(--text);}
+  .calcell.unplayed{border:1px solid #2c333b;color:var(--muted);}
+  .calcell.void{color:var(--muted);opacity:.32;}
+  .calcell.today{outline:2px solid var(--text);outline-offset:-2px;}
+  .calcell:not(:disabled){cursor:pointer;}
+  .calcell:not(:disabled):focus-visible{outline:2px solid var(--text);outline-offset:2px;}
+  .callegend{display:flex;flex-wrap:wrap;justify-content:center;gap:14px;margin:16px 0 0;color:var(--muted);font-size:11px;}
+  .callegend span{display:inline-flex;align-items:center;gap:4px;}
+  .callegend i{width:12px;height:12px;border-radius:3px;}
+  .callegend i.three{background:var(--green);}
+  .callegend i.two{background:var(--crate);}
+  .callegend i.none{border:1px solid #2c333b;}
   .testnote{color:var(--muted);opacity:.55;font-size:11px;margin:16px 0 0;}
   .card .landtag{color:var(--muted);font-size:14px;margin:10px 0 0;}   /* beat .card p */
   .card .result{color:var(--text);font-weight:700;font-size:15px;margin:10px 0 0;}
@@ -450,7 +485,10 @@
     <div class="landbrand">SPELLOBAN</div>
     <div class="datenav">
       <button class="stepper" id="datePrev" aria-label="Previous day">‹</button>
-      <span class="dailyline" id="dailyLine"></span>
+      <button class="daypick" id="dayPick" aria-label="Browse the archive calendar">
+        <svg class="calicon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg>
+        <span class="dailyline" id="dailyLine"></span>
+      </button>
       <button class="stepper" id="dateNext" aria-label="Next day">›</button>
     </div>
     <div class="dailysub" id="dailySub"></div>
@@ -528,6 +566,25 @@
     </div>
     <div class="nextin" id="statsNext"></div>
     <button class="ghost" id="statsDoneBtn">Close</button>
+  </div>
+</div>
+
+<!-- Archive calendar — browse past dailies; tap a day to open its landing -->
+<div class="overlay" id="archiveOverlay">
+  <div class="card archive">
+    <button class="closeX" id="archiveCloseBtn" aria-label="Close">✕</button>
+    <h2>Archive</h2>
+    <div class="monthnav">
+      <button class="stepper" id="monthPrev" aria-label="Previous month">‹</button>
+      <span class="monthlabel" id="monthLabel"></span>
+      <button class="stepper" id="monthNext" aria-label="Next month">›</button>
+    </div>
+    <div class="calgrid" id="calGrid"></div>
+    <div class="callegend">
+      <span><i class="three"></i> 3★ done</span>
+      <span><i class="two"></i> replay</span>
+      <span><i class="none"></i> unplayed</span>
+    </div>
   </div>
 </div>
 
@@ -1577,6 +1634,7 @@ window.addEventListener("keydown", (e) => {
     if (winOverlay.classList.contains("show")){ e.preventDefault(); closeWinCard(); return; }
     if (helpOverlay.classList.contains("show")){ e.preventDefault(); hideHelp(); return; }
     if (statsOverlay.classList.contains("show")){ e.preventDefault(); hideStats(); return; }
+    if (archiveOverlay.classList.contains("show")){ e.preventDefault(); hideArchive(); return; }
     const paste = document.getElementById("pasteOverlay");
     if (paste.classList.contains("show")){
       e.preventDefault();
@@ -1828,6 +1886,85 @@ function renderLanding(){
 // date stepper — both directions while testing (becomes past-only at production)
 document.getElementById("datePrev").addEventListener("click", () => { viewedDate = addDays(viewedDate, -1); renderLanding(); });
 document.getElementById("dateNext").addEventListener("click", () => { viewedDate = addDays(viewedDate,  1); renderLanding(); });
+
+// ---------- archive calendar ----------
+// STRICT exact-date lookup — never dailyPuzzle(), whose modulo fallback would
+// smear a baked puzzle's record onto un-baked dates (phantom stars). Every miss
+// renders as a greyed, non-interactive cell, so archive status is always truthful.
+const archiveOverlay = document.getElementById("archiveOverlay");
+function archiveDaily(dateStr){ return dailyPool().find(p => p.meta && p.meta.date === dateStr) || null; }
+function ymd(y, m, d){ return `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`; }
+// earliest baked month (capped at the epoch) — the `‹` floor; avoids paging back
+// through all-greyed pre-bake months.
+function archiveFloorMonth(){
+  let earliest = null;
+  for (const p of dailyPool()){ const d = p.meta && p.meta.date; if (d && (!earliest || d < earliest)) earliest = d; }
+  return ((earliest && earliest > PUZZLE_EPOCH) ? earliest : PUZZLE_EPOCH).slice(0, 7);
+}
+let archiveMonth = getToday().slice(0, 7);   // "YYYY-MM" currently displayed
+
+function buildCalCell(dateStr, dayNum, today){
+  const cell = document.createElement("button");
+  cell.type = "button"; cell.className = "calcell";
+  const num = document.createElement("span"); num.textContent = dayNum; cell.appendChild(num);
+  let glyph = "", interactive = false;
+  if (dateStr > today || dateStr < PUZZLE_EPOCH){
+    cell.classList.add("void");
+  } else {
+    const p = archiveDaily(dateStr);
+    if (!p){
+      cell.classList.add("void");
+    } else {
+      const rec = getRecord(p.id);
+      if (rec.best === null){
+        if (loadProgress(p.id)){ cell.classList.add("progress"); glyph = "…"; }
+        else cell.classList.add("unplayed");
+      } else {
+        // colored either tier = solved; green = mastered (3★), gold = come back (1–2★).
+        if (starsFor(rec.best, p.optimal) === 3){ cell.classList.add("three"); glyph = "✓"; }
+        else { cell.classList.add("two"); glyph = "★"; }
+      }
+      interactive = true;
+      cell.addEventListener("click", () => { viewedDate = dateStr; hideArchive(); renderLanding(); });
+    }
+  }
+  if (glyph){ const g = document.createElement("span"); g.className = "g"; g.textContent = glyph; cell.appendChild(g); }
+  if (dateStr === today) cell.classList.add("today");   // ring even when un-baked (informational)
+  if (!interactive) cell.disabled = true;
+  return cell;
+}
+
+const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+function renderArchive(){
+  const [Y, M] = archiveMonth.split("-").map(Number);
+  const today = getToday();
+  document.getElementById("monthLabel").textContent = `${MONTH_NAMES[M-1]} ${Y}`;
+  const grid = document.getElementById("calGrid");
+  grid.innerHTML = "";
+  ["Su","Mo","Tu","We","Th","Fr","Sa"].forEach(w => {
+    const e = document.createElement("div"); e.className = "wd"; e.textContent = w; grid.appendChild(e);
+  });
+  const firstDow = new Date(Date.UTC(Y, M-1, 1)).getUTCDay();     // 0=Sun
+  for (let i = 0; i < firstDow; i++){ const b = document.createElement("div"); b.className = "blank"; grid.appendChild(b); }
+  const days = new Date(Date.UTC(Y, M, 0)).getUTCDate();
+  for (let d = 1; d <= days; d++) grid.appendChild(buildCalCell(ymd(Y, M, d), d, today));
+  document.getElementById("monthPrev").disabled = archiveMonth <= archiveFloorMonth();
+  document.getElementById("monthNext").disabled = archiveMonth >= today.slice(0, 7);
+}
+function stepArchiveMonth(delta){
+  let [Y, M] = archiveMonth.split("-").map(Number);
+  M += delta; if (M < 1){ M = 12; Y--; } if (M > 12){ M = 1; Y++; }
+  const cand = `${Y}-${String(M).padStart(2,"0")}`;
+  if (cand < archiveFloorMonth() || cand > getToday().slice(0, 7)) return;
+  archiveMonth = cand; renderArchive();
+}
+function openArchive(){ archiveMonth = getToday().slice(0, 7); renderArchive(); archiveOverlay.classList.add("show"); }
+function hideArchive(){ archiveOverlay.classList.remove("show"); }
+document.getElementById("dayPick").addEventListener("click", openArchive);
+document.getElementById("archiveCloseBtn").addEventListener("click", hideArchive);
+document.getElementById("monthPrev").addEventListener("click", () => stepArchiveMonth(-1));
+document.getElementById("monthNext").addEventListener("click", () => stepArchiveMonth(1));
+archiveOverlay.addEventListener("click", (e) => { if (e.target === archiveOverlay) hideArchive(); });
 
 // Return to the landing lobby WITHOUT changing the viewed day — Home from the
 // board and "Back to landing" from the win card both land on the day you were on
