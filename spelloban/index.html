@@ -509,7 +509,7 @@
     <div class="countdown" id="landCountdown"></div>
     <button class="primary" id="playBtn">▶ Play</button>
     <button class="ghost" id="restartBtn" style="display:none">↻ Restart</button>
-    <div class="testnote">⚙ Testing — step ‹ › to preview any day</div>
+    <div class="testnote">⚙ Testing — step ‹ › or tap the date to browse past days</div>
   </div>
 </div>
 
@@ -1060,7 +1060,7 @@ function undo(){
 }
 
 function reset(){
-  if (game.animating) return;
+  if (game.won || game.animating) return;   // never reset a solved board out from under the win flow
   game.state = cloneState(game.initial);
   game.history = [];
   game.won = false;
@@ -1226,19 +1226,24 @@ function msToNextLocalMidnight(){
   next.setHours(24, 0, 0, 0);          // 24:00 today = 00:00 tomorrow, local
   return next - now;
 }
-// live "next puzzle in Hh MMm SSs" ticker toward the next local midnight
-let _cdTimer = null;
-function stopCountdown(){ if (_cdTimer){ clearInterval(_cdTimer); _cdTimer = null; } }
+// live "next puzzle in Hh MMm SSs" ticker toward the next local midnight. Keyed
+// per-element so concurrent countdowns (landing + Stats over it) don't stomp each
+// other — stopCountdown() with no arg stops all (cleanup); with an el stops one.
+const _cdTimers = new Map();
+function stopCountdown(el){
+  if (el){ const t = _cdTimers.get(el); if (t){ clearInterval(t); _cdTimers.delete(el); } }
+  else { for (const t of _cdTimers.values()) clearInterval(t); _cdTimers.clear(); }
+}
 function startCountdown(el){
-  stopCountdown();
+  stopCountdown(el);
   const tick = () => {
     const s = Math.max(0, Math.floor(msToNextLocalMidnight() / 1000));
     const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
     el.innerHTML = `Next puzzle in <b>${h}h ${String(m).padStart(2,"0")}m ${String(sec).padStart(2,"0")}s</b>`;
-    if (s <= 0){ stopCountdown(); el.innerHTML = "New puzzle ready — reload"; }
+    if (s <= 0){ stopCountdown(el); el.innerHTML = "New puzzle ready — reload"; }
   };
   tick();
-  _cdTimer = setInterval(tick, 1000);
+  _cdTimers.set(el, setInterval(tick, 1000));
 }
 // record a solve: bump total plays and advance the DAILY streak — consecutive
 // calendar days with at least one solve. A gap resets it; multiple solves on
@@ -1258,6 +1263,23 @@ function recordSolve(){
   try { localStorage.setItem(STATS_KEY, JSON.stringify(s)); } catch {}
   Platform.queueSync();
   return s;
+}
+// Derive streak fields from a set of solved dates — the honest, order-independent
+// source of truth used to reconcile across devices (a stored curStreak can be
+// stale/inflated; solved-days can't). curStreak = run ending at the latest solve.
+function streaksFrom(dates){
+  const days = [...new Set(dates || [])].sort();
+  if (!days.length) return { curStreak: 0, bestStreak: 0, lastDate: null };
+  let best = 1, run = 1;
+  for (let i = 1; i < days.length; i++){
+    run = daysBetween(days[i - 1], days[i]) === 1 ? run + 1 : 1;
+    if (run > best) best = run;
+  }
+  let cur = 1;
+  for (let i = days.length - 1; i > 0; i--){
+    if (daysBetween(days[i - 1], days[i]) === 1) cur++; else break;
+  }
+  return { curStreak: cur, bestStreak: best, lastDate: days[days.length - 1] };
 }
 // add/subtract whole days from a YYYY-MM-DD (UTC math, DST-safe)
 function addDays(dateStr, delta){
@@ -1380,18 +1402,21 @@ const Platform = (() => {
     if (blob && blob.records) localStorage.setItem(RECORDS_KEY, JSON.stringify(blob.records));
   };
 
-  // Monotonic merge so neither side loses progress. Schema-agnostic: start from
-  // a union of both blobs (unknown/new fields preserved) so a stats-shape change
-  // like `lastDate` can't be silently dropped, then apply the rules we know —
-  // integer counters take the max; the daily-streak date keeps the later day.
-  // (Cross-device streak reconciliation is a v1 approximation; a fully correct
-  // merge would track the set of solved days.)
-  const COUNTERS = ["played", "curStreak", "bestStreak"];
+  // Merge so neither side loses progress. Start from a field-union (unknown/new
+  // fields preserved), then reconcile the streak HONESTLY from the union of solved
+  // days rather than max()-ing the stored counters — a stale curStreak (not yet
+  // reset after a gap) would otherwise revive and inflate across devices.
   const mergeStats = (a, b) => {
     a = a || {}; b = b || {};
     const out = { ...BLANK_STATS, ...a, ...b };
-    for (const k of COUNTERS) out[k] = Math.max(a[k] || 0, b[k] || 0);
-    out.lastDate = [a.lastDate, b.lastDate].filter(Boolean).sort().pop() || null;
+    let hist = [...new Set([...(a.history || []), ...(b.history || [])])].sort();
+    if (hist.length > 90) hist = hist.slice(-90);   // match recordSolve's cap
+    out.history = hist;
+    const st = streaksFrom(hist);
+    out.curStreak = st.curStreak;                    // recomputed → can't be revived by a stale value
+    out.bestStreak = Math.max(a.bestStreak || 0, b.bestStreak || 0, st.bestStreak);  // keep all-time best even if trimmed
+    out.lastDate = st.lastDate;
+    out.played = Math.max(a.played || 0, b.played || 0, hist.length);  // monotonic; never below solved-days
     return out;
   };
   const mergeRecords = (a, b) => {
@@ -1475,6 +1500,8 @@ function closeWinCard(){
 }
 // Clear when the game leaves the won state (reset / new puzzle).
 function clearWinUI(){
+  (game.winTimers || []).forEach(clearTimeout);   // cancel any pending celebration / showWinModal
+  game.winTimers = [];
   winOverlay.classList.remove("show");
   setSeeResult(false);
   stopCountdown();
@@ -1497,16 +1524,20 @@ function win(pushedIdx){
   let epi = order.indexOf(pushedIdx);
   if (epi === -1) epi = Math.floor((order.length - 1) / 2);   // fallback: centre
   const SLIDE = 170, STAGGER = 130;        // wait for the last slide, then wave
-  order.forEach((i, k) => setTimeout(() => {
+  // Track every pending timer so leaving mid-celebration (Home/Reset) can cancel
+  // them — otherwise showWinModal fires late over the landing, or reads a board
+  // that was Reset out from under it (recording a bogus 0-move solve).
+  game.winTimers = order.map((i, k) => setTimeout(() => {
     const el = game.crateEls[i];
     if (el){ el.classList.remove("pop", "celebrate"); void el.offsetWidth; el.classList.add("celebrate"); }
   }, SLIDE + Math.abs(k - epi) * STAGGER));
 
   const maxDist = Math.max(epi, order.length - 1 - epi);
-  setTimeout(showWinModal, SLIDE + maxDist * STAGGER + 420);
+  game.winTimers.push(setTimeout(showWinModal, SLIDE + maxDist * STAGGER + 420));
 }
 
 function showWinModal(){
+  hideHelp(); hideStats();   // a help/stats popup opened during the ~1s celebration would paint over the win card
   const { optimal } = game.state.meta;
   const moves = game.state.moves;
   const perfect = isOptimal(moves, optimal);
@@ -1537,8 +1568,12 @@ function showWinModal(){
   // Streak/played advance ONLY for today's actual daily — never for archive,
   // date-stepper, or ?date= solves (otherwise the streak is farmable). Non-today
   // solves still write per-puzzle best/tries (recordBest below) but not streak.
-  const isDaily = game.state.id === dailyPuzzle(getToday()).id;
-  const stats = (IS_TEST || !isDaily || game.debugReplay) ? loadStats() : recordSolve();
+  // "today's daily" requires today to be an EXACT baked date — else dailyPuzzle()'s
+  // modulo fallback would let a bake-lapse record a streak for a past puzzle's id.
+  const isDaily = !!archiveDaily(getToday()) && game.state.id === dailyPuzzle(getToday()).id;
+  // DATE_OVERRIDE (?date=) makes getToday() lie, which would let a streak be farmed
+  // by stepping the override forward and solving — so it never advances the streak.
+  const stats = (IS_TEST || !isDaily || game.debugReplay || DATE_OVERRIDE) ? loadStats() : recordSolve();
   document.getElementById("winStPlayed").textContent = stats.played;
   document.getElementById("winStStreak").textContent = stats.curStreak;
   document.getElementById("winStBest").textContent = stats.bestStreak;
@@ -1557,7 +1592,7 @@ function showWinModal(){
   // countdown to the next daily — only when the solved puzzle IS today's daily
   const nextEl = document.getElementById("winNext");
   if (isDaily) startCountdown(nextEl);
-  else { stopCountdown(); nextEl.innerHTML = ""; }
+  else { stopCountdown(nextEl); nextEl.innerHTML = ""; }
 
   openWinCard();
   if (perfect) confettiBurst();
@@ -1582,7 +1617,7 @@ function toast(msg){
 // touch-action:none on .board stops the page scrolling/rubber-banding while playing.
 (function setupBoardInput(){
   const MIN = 24;                          // px: tap vs. swipe threshold
-  let sx = 0, sy = 0, active = false;
+  let sx = 0, sy = 0, active = false, activeId = null;
   let startCell = null, startOnCrate = false, previewDir = null;
 
   const dirOf = (dx, dy) =>
@@ -1590,8 +1625,8 @@ function toast(msg){
                                 : (dy > 0 ? "down"  : "up");
 
   boardEl.addEventListener("pointerdown", (e) => {
-    if (!e.isPrimary) return;
-    active = true;
+    if (!e.isPrimary || active) return;   // ignore secondary fingers and re-entrancy
+    active = true; activeId = e.pointerId;
     sx = e.clientX; sy = e.clientY;
     startCell = cellFromPoint(sx, sy);       // cache: drives the crate-drag preview
     startOnCrate = !!(startCell && crateIndexAt(game.state, startCell[0], startCell[1]) !== -1);
@@ -1601,7 +1636,7 @@ function toast(msg){
   });
 
   boardEl.addEventListener("pointermove", (e) => {
-    if (!active) return;
+    if (!active || e.pointerId !== activeId) return;   // only the finger that began the gesture
     e.preventDefault();                      // block scroll / rubber-band mid-gesture
     if (!startOnCrate) return;               // only a direct crate-drag gets a ghost
     const dx = e.clientX - sx, dy = e.clientY - sy;
@@ -1616,12 +1651,13 @@ function toast(msg){
     }
   });
 
-  const endGesture = () => { active = false; previewDir = null; hidePushGhost(); };
+  const endGesture = (e) => { if (e && e.pointerId !== activeId) return; active = false; activeId = null; previewDir = null; hidePushGhost(); };
   boardEl.addEventListener("pointercancel", endGesture);
 
   boardEl.addEventListener("pointerup", async (e) => {
     if (!active){ hidePushGhost(); return; }
-    active = false;
+    if (e.pointerId !== activeId) return;    // a second finger lifting — not our gesture
+    active = false; activeId = null;
     previewDir = null;
     e.preventDefault();
 
@@ -1714,7 +1750,7 @@ const helpOverlay  = document.getElementById("helpOverlay");
 const statsOverlay = document.getElementById("statsOverlay");
 const showHelp = () => helpOverlay.classList.add("show");
 const hideHelp = () => helpOverlay.classList.remove("show");
-const hideStats = () => { stopCountdown(); statsOverlay.classList.remove("show"); };
+const hideStats = () => { stopCountdown(document.getElementById("statsNext")); statsOverlay.classList.remove("show"); };
 document.getElementById("homeBtn").addEventListener("click", openLanding);      // play top-bar Home
 document.getElementById("helpBtn").addEventListener("click", showHelp);        // play top-bar "?"
 document.getElementById("landHelpBtn").addEventListener("click", showHelp);    // landing "?"
@@ -1874,7 +1910,7 @@ function renderLanding(){
     restartBtn.style.display = "none";
     resEl.innerHTML = isToday ? `✓ Solved in <b>${rec.best}</b> moves`
                               : `✓ Best <b>${rec.best}</b> moves`;
-    if (isToday) startCountdown(cdEl); else { stopCountdown(); cdEl.textContent = ""; }
+    if (isToday) startCountdown(cdEl); else { stopCountdown(cdEl); cdEl.textContent = ""; }
     // Copy result belongs to the just-completed win card, not the landing —
     // here a solved puzzle offers a replay. (Copy stays reachable via the
     // in-play "See result" pill → win card.)
@@ -1883,7 +1919,7 @@ function renderLanding(){
   } else {
     const inProgress = !!loadProgress(daily.id);
     resEl.innerHTML = inProgress ? `In progress · <b>${loadProgress(daily.id).moves}</b> moves` : "";
-    stopCountdown(); cdEl.textContent = "";
+    stopCountdown(cdEl); cdEl.textContent = "";
     playBtn.textContent = inProgress ? "▶ Resume" : "▶ Play";
     playBtn.onclick = () => startPuzzle(daily);
     // In progress → offer a secondary Restart: drop the saved snapshot, start fresh.
@@ -1891,12 +1927,26 @@ function renderLanding(){
     restartBtn.onclick = () => { clearProgress(daily.id); startPuzzle(daily); };
   }
 
+  document.getElementById("datePrev").disabled = viewedDate <= earliestBakedDate();
+  document.getElementById("dateNext").disabled = viewedDate >= today;
   renderStreak(loadStats());
 }
 
-// date stepper — both directions while testing (becomes past-only at production)
-document.getElementById("datePrev").addEventListener("click", () => { viewedDate = addDays(viewedDate, -1); renderLanding(); });
-document.getElementById("dateNext").addEventListener("click", () => { viewedDate = addDays(viewedDate,  1); renderLanding(); });
+// earliest date with a real baked puzzle — the stepper/floor bound.
+function earliestBakedDate(){
+  let e = null;
+  for (const p of dailyPool()){ const d = p.meta && p.meta.date; if (d && (!e || d < e)) e = d; }
+  return e || getToday();
+}
+// date stepper — bounded to the baked calendar [earliest … today]. Stepping past
+// today (or before the first bake) would hit dailyPuzzle()'s modulo fallback and
+// record a solve under the wrong date's id, so both ends are clamped.
+document.getElementById("datePrev").addEventListener("click", () => {
+  if (viewedDate > earliestBakedDate()){ viewedDate = addDays(viewedDate, -1); renderLanding(); }
+});
+document.getElementById("dateNext").addEventListener("click", () => {
+  if (viewedDate < getToday()){ viewedDate = addDays(viewedDate, 1); renderLanding(); }
+});
 
 // ---------- archive calendar ----------
 // STRICT exact-date lookup — never dailyPuzzle(), whose modulo fallback would
@@ -1999,8 +2049,8 @@ function showStart(){                           // boot: always open on today
 }
 
 playAgainBtn.addEventListener("click", () => {
-  clearWinUI();
-  reset();
+  game.won = false;   // sanctioned post-win replay → clear the flag so reset()'s won-guard allows it
+  reset();            // reset() calls clearWinUI() itself
 });
 document.getElementById("backHomeBtn").addEventListener("click", openLanding);   // win → daily menu
 
