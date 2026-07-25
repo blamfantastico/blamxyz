@@ -28,6 +28,13 @@
     --barH:56px;
     --footH:60px;
     --vpad:0px;          /* extra top/bottom breathing room — desktop only (see media query) */
+    /* board sizing hoisted here so the play grid AND the page dot-grid share one
+       cell size. --cols/--rows default here; buildBoard() overrides per puzzle. */
+    --cols:7; --rows:12;
+    --boardH: calc(100dvh - var(--barH) - var(--footH) - 44px
+                   - env(safe-area-inset-top) - env(safe-area-inset-bottom) - var(--vpad) * 2);
+    --bw: min(92vw, calc(var(--maxw) - 16px), calc(var(--boardH) * var(--cols) / var(--rows)));
+    --cell: calc(var(--bw) / var(--cols));
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{margin:0;height:100%;}
@@ -100,11 +107,7 @@
   }
   .board{
     position:relative;
-    /* Height-budgeted so a portrait board fits the visible viewport with mobile
-       chrome present. 44px reserves the two 12px gaps + tray padding + slack. */
-    --boardH: calc(100dvh - var(--barH) - var(--footH) - 44px
-                   - env(safe-area-inset-top) - env(safe-area-inset-bottom) - var(--vpad) * 2);
-    --bw: min(92vw, calc(var(--maxw) - 16px), calc(var(--boardH) * var(--cols) / var(--rows)));
+    /* --boardH/--bw/--cell now live on :root (shared with the page dot-grid). */
     width:var(--bw);
     aspect-ratio: var(--cols) / var(--rows);
     display:grid;
@@ -341,15 +344,6 @@
   .streakdots .dot{width:8px;height:8px;border-radius:50%;background:#3a424c;}
   .streakdots .dot.on{background:var(--green);}
   .streakdots .dot.today{background:#3a424c;box-shadow:0 0 0 1.5px var(--crate);}
-  /* SOLVED card grouped into zones: Result · Actions · Stats+Next · Menu.
-     Tight within a zone, ~20px seams between; one hairline splits "this solve"
-     from "your stats". */
-  #copyBtn{margin-top:22px;}                                     /* seam: result → actions */
-  #winStatgrid{margin:20px 0 0;padding-top:20px;
-    border-top:1px solid rgba(255,255,255,.08);}                 /* seam + hairline: actions → stats */
-  #winNext{margin:8px 0 0;}                                      /* stats → next (same zone) */
-  #backHomeBtn{margin-top:20px;}                                 /* seam: next → menu */
-
   /* ---------- daily landing (Sealed Crates) — full-screen front door ---------- */
   /* opaque landing — no board leaks behind it */
   .overlay.solid{background:var(--bg);backdrop-filter:none;}
@@ -363,12 +357,12 @@
   /* the date + difficulty + rating grouped into one panel */
   .datecard{background:var(--panel);border:1px solid #2c333b;border-radius:16px;padding:16px 16px 18px;margin:20px 0 0;}
   /* date stepper (visible testing affordance; becomes a past-only archive later) */
-  .datenav{display:flex;align-items:center;justify-content:center;gap:12px;margin:0;}
-  .dailyline{color:var(--text);font-weight:700;font-size:15px;margin:0;text-align:center;}
+  .datenav{display:flex;align-items:center;justify-content:center;gap:8px;margin:0;}
+  .dailyline{color:var(--text);font-weight:700;font-size:15px;margin:0;text-align:center;white-space:nowrap;}   /* the date is one unit — never wrap it on a narrow screen */
   /* the date label doubles as the archive-calendar opener (calendar glyph = hint).
      Grid with a mirror column right of the text so the date sits dead-centre
      despite the leading icon. */
-  .daypick{display:grid;grid-template-columns:15px auto 15px;column-gap:7px;align-items:center;background:transparent;border:0;margin:0;padding:7px 8px;cursor:pointer;}
+  .daypick{display:grid;grid-template-columns:14px auto 14px;column-gap:6px;align-items:center;background:transparent;border:0;margin:0;padding:7px 4px;cursor:pointer;}
   .daypick .calicon{color:var(--muted);}
   .daypick:active{transform:translateY(1px);}
   .daypick:focus-visible{outline:2px solid var(--text);outline-offset:2px;border-radius:6px;}
@@ -467,6 +461,238 @@
   .df-safari{background:#161618;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;flex:0 0 auto;}
   .df-url{background:#2c2c2e;color:#c9c9cc;font:13px system-ui,-apple-system,sans-serif;padding:9px 18px;border-radius:12px;min-width:62%;text-align:center;}
   .df-home{width:135px;height:5px;background:#fff;border-radius:3px;opacity:.85;}
+
+  /* ========================================================================
+     HALFTONE POP — flat pop colors, ink outlines, halftone-line drop shadows.
+     Rolled out screen by screen; primitives here are shared, win overlay first.
+     ======================================================================== */
+  :root{
+    --pop-cobalt:#2E4BE8;
+    --pop-yellow:#FFD23E;
+    --pop-pink:#FF3D9D;
+    --pop-gold:#FFC42E;
+    --pop-green:#35c46b;
+    --pop-paper:#F3EAD5;
+    --pop-ink:#131313;
+  }
+  /* halftone-line drop shadow: an offset hatched sibling painted behind */
+  .htwrap{position:relative;}
+  /* halftone drop-shadow: a same-size sibling shifted down-right; multiply → the ink
+     hatch darkens whatever's actually behind it (works on any background). */
+  .htsh{position:absolute;inset:0;border-radius:14px;
+    background-image:repeating-linear-gradient(45deg,var(--pop-ink) 0 1px,transparent 1px 4px);
+    mix-blend-mode:multiply;transform:translate(7px,8px);}
+  .htwrap > *:not(.htsh){position:relative;border:3px solid var(--pop-ink);border-radius:14px;}
+  .balance{text-wrap:balance;}
+  /* focus rings only for keyboard navigation — never on programmatic/mouse focus
+     (e.g. the Play button auto-focused on load painting a stray blue ring) */
+  :focus:not(:focus-visible){outline:none;}
+  /* on-brand ring for real tab focus on pop buttons */
+  .popbtn:focus-visible{outline:3px solid var(--pop-cobalt);outline-offset:2px;}
+  /* pop buttons */
+  .popbtn{width:100%;font-family:inherit;font-weight:900;text-transform:uppercase;letter-spacing:.04em;
+    cursor:pointer;border:3px solid var(--pop-ink);border-radius:14px;color:var(--pop-ink);background:#fff;margin:0;}
+  .popbtn.share{background:var(--pop-yellow);padding:15px;font-size:16px;}
+  .popbtn.playagain{background:#fff;padding:13px;font-size:14px;}
+  .popbtn.menu{border:0;background:transparent;color:#6c6a5c;font-size:13px;padding:8px;}
+
+  /* ---- win overlay: full-bleed cobalt hero + cream content ---- */
+  #winOverlay.winpop{padding:20px;background:var(--pop-paper);backdrop-filter:none;
+    align-items:center;justify-content:center;}
+  .winscreen{width:100%;max-width:400px;margin:auto;border:3px solid var(--pop-ink);border-radius:20px;
+    overflow:hidden;box-shadow:7px 9px 0 var(--pop-ink);display:flex;flex-direction:column;background:var(--pop-paper);}
+  #winOverlay.show .winscreen{animation:winin .32s cubic-bezier(.2,.7,.3,1) both;}
+  @keyframes winin{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+  .winhero{position:relative;flex:0 0 auto;text-align:center;color:#fff;padding:18px 22px 26px;
+    background:var(--pop-cobalt);
+    background-image:radial-gradient(rgba(255,255,255,.30) 0.9px, transparent 1.1px);
+    background-size:13px 13px;border-bottom:3px solid var(--pop-ink);}
+  .winx{position:absolute;top:16px;right:18px;width:30px;height:30px;border-radius:8px;
+    border:2.5px solid var(--pop-ink);background:#fff;color:var(--pop-ink);font-size:14px;font-weight:900;
+    line-height:1;box-shadow:2.5px 2.5px 0 var(--pop-ink);padding:0;margin:0;
+    display:flex;align-items:center;justify-content:center;}
+  .winid{font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;margin-top:8px;}
+  #winOverlay #winStars{justify-content:center;margin:14px 0 4px;font-size:46px;line-height:1;}
+  #winOverlay #winStars .s{color:rgba(255,255,255,.32);text-shadow:none;}
+  #winOverlay #winStars .s.on{color:var(--pop-gold);-webkit-text-stroke:2px var(--pop-ink);
+    paint-order:stroke fill;text-shadow:none;}
+  .winmoves{font-size:60px;font-weight:900;line-height:.9;letter-spacing:-.04em;color:#fff;
+    -webkit-text-stroke:2.5px var(--pop-ink);paint-order:stroke fill;font-variant-numeric:tabular-nums;}
+  .winmoveslbl{font-size:11px;letter-spacing:.24em;text-transform:uppercase;font-weight:900;margin-top:6px;}
+  .winsep{border:0;border-top:2px solid #fff;width:60%;margin:16px auto 0;}
+  #winOverlay #winRecord{margin:11px 0 0;}
+  #winOverlay #winRecord.muted{font-size:13px;font-weight:900;text-transform:uppercase;
+    letter-spacing:.03em;color:rgba(255,255,255,.9);}
+  #winOverlay #winRecord.sticker{display:inline-block;transform:rotate(-2.5deg);background:var(--pop-yellow);
+    color:var(--pop-ink);border:2.5px solid var(--pop-ink);border-radius:9px;padding:6px 14px;font-size:14px;
+    font-weight:900;text-transform:uppercase;letter-spacing:.04em;box-shadow:3px 3px 0 var(--pop-ink);}
+  #winOverlay #winRecord:empty{display:none;}
+  .wincontent{flex:0 0 auto;display:flex;flex-direction:column;gap:16px;padding:20px;}
+  .winstreak{padding:14px 14px 15px;text-align:center;background:#fff;}
+  .winstreakhead{font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:.03em;color:var(--pop-ink);}
+  .winweek{display:flex;gap:7px;justify-content:center;margin:12px 0 9px;}
+  .wtile{width:27px;height:27px;border-radius:7px;border:2.5px solid var(--pop-ink);
+    display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;line-height:1;}
+  .wtile.on{background:var(--pop-pink);color:#fff;}
+  .wtile.today{background:var(--pop-gold);color:var(--pop-ink);}
+  .wtile.off{background:#f2ead7;color:#b8b09a;}
+  /* future days: not available yet — faded, dashed, unfilled */
+  .wtile.future{background:transparent;border-style:dashed;border-color:rgba(19,19,19,.22);color:rgba(19,19,19,.24);}
+  .winnext{font-size:12px;font-weight:700;color:#6c6a5c;margin-top:2px;}
+  .winnext b{color:var(--pop-ink);font-variant-numeric:tabular-nums;}
+
+  /* ---- daily landing (Halftone Pop) — reuses the win's .winhero/.wincontent/.winstreak
+     classes; a centered, bounded panel: cobalt header (date picker + rating) + cream body
+     (streak + Play), so the two screens share one visual language and most CSS. ---- */
+  #startOverlay.landpop{padding:20px;background:var(--pop-paper);backdrop-filter:none;
+    align-items:center;justify-content:center;}
+  .landscreen{width:100%;max-width:400px;margin:auto;border:3px solid var(--pop-ink);
+    border-radius:20px;overflow:hidden;box-shadow:7px 9px 0 var(--pop-ink);}
+  .landbody{flex:0 0 auto;}                     /* bounded panel: don't stretch */
+  .landhero .landbrand{font-weight:900;font-size:34px;letter-spacing:-.01em;color:#fff;
+    text-transform:uppercase;-webkit-text-stroke:2px var(--pop-ink);paint-order:stroke fill;}
+  .landhero .landtag{color:rgba(255,255,255,.85);font-size:13.5px;font-weight:600;margin:9px 0 0;}
+  /* puzzle box: date → rating → result, framed in a white pop card inside the hero;
+     the arrows flank the whole stack, vertically centered (align-items:center). */
+  .puzzlebox{display:flex;align-items:center;gap:2px;margin:18px 0 2px;background:#fff;
+    border:3px solid var(--pop-ink);border-radius:14px;box-shadow:4px 5px 0 var(--pop-ink);padding:12px 8px 14px;}
+  .puzzlebox .pbody{flex:1 1 auto;min-width:0;text-align:center;}
+  .puzzlebox .stepper{flex:0 0 auto;background:transparent;border:0;box-shadow:none;border-radius:0;
+    width:32px;height:32px;padding:0;margin:0;display:flex;align-items:center;justify-content:center;color:var(--pop-ink);}
+  .puzzlebox .stepper:disabled{opacity:.28;}
+  .puzzlebox .stepper:active{transform:translateY(1px);}
+  .puzzlebox .chev{width:20px;height:20px;}
+  .puzzlebox .daypick{display:inline-block;background:transparent;border:0;margin:0;padding:2px 6px;cursor:pointer;}
+  .puzzlebox .daypick:active{transform:translateY(1px);}
+  .puzzlebox .dailyline{color:var(--pop-ink);font-weight:900;font-size:18px;white-space:nowrap;}
+  .puzzlebox .dailysub{color:#7a7768;font-weight:700;font-size:13px;margin:10px 0 0;}
+  .puzzlebox .stars{margin:10px 0 0;font-size:28px;}
+  .puzzlebox .stars .s{color:#dccfb2;text-shadow:none;}
+  .puzzlebox .stars .s.on{color:var(--pop-gold);-webkit-text-stroke:2px var(--pop-ink);paint-order:stroke fill;text-shadow:none;}
+  /* reserve the result line's height so flipping dates never resizes the box */
+  .puzzlebox .result{color:var(--pop-ink);font-weight:800;margin:10px 0 0;min-height:1.25em;}
+  /* streak: no box — plain 🔥 head + weekday tiles on the cream body */
+  .landstreak{text-align:center;cursor:pointer;}
+  /* next-puzzle countdown: the prominent "come back tomorrow" beat on the landing.
+     Height reserved so flipping between today and archive days never shifts the panel. */
+  .landbody .countdown{color:#5b5848;font-weight:800;margin:2px 0;font-size:15px;text-align:center;min-height:1.25em;}
+  .landbody .countdown b{color:var(--pop-ink);font-variant-numeric:tabular-nums;}
+  .landbody #playBtn{margin:0;}
+  .landbody .testnote{color:#9a9684;opacity:1;margin:2px 0 0;font-size:11px;}
+  /* corner help "?" */
+  .landpop .help{background:#fff;border:2.5px solid var(--pop-ink);color:var(--pop-ink);
+    box-shadow:2.5px 2.5px 0 var(--pop-ink);font-weight:900;}
+  .landpop .help:active{transform:translate(1px,1px);box-shadow:1.5px 1.5px 0 var(--pop-ink);}
+
+  /* ================= play screen (Halftone Pop) ================= */
+  /* page dot-grid uses --cell → same pitch as the board tiles (graph paper) */
+  body{background:var(--pop-paper);color:var(--pop-ink);
+    background-image:radial-gradient(rgba(19,19,19,.14) 1.2px, transparent 1.6px);background-size:var(--cell) var(--cell);}
+  /* top bar */
+  .kicker{color:var(--pop-ink);font-weight:900;letter-spacing:.06em;}
+  .logomark{background:var(--pop-pink);color:#fff;border:2.5px solid var(--pop-ink);border-radius:8px;
+    box-shadow:2px 2px 0 var(--pop-ink);}
+  .meter .pip{background:#e2d8bf;border:2px solid var(--pop-ink);border-radius:3px;box-shadow:none;width:8px;height:14px;}
+  .meter .pip.on{background:var(--pop-pink);box-shadow:none;}
+  .iconbtn{background:#fff;border:2.5px solid var(--pop-ink);color:var(--pop-ink);border-radius:10px;
+    box-shadow:2px 2px 0 var(--pop-ink);}
+  .iconbtn:active{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--pop-ink);}
+  /* board: ink-framed cream grid, NO drop-shadow; an inner shadow sinks the play field into an inset well */
+  .board-tray{position:relative;background:transparent;border:0;box-shadow:none;padding:0;}
+  .board{position:relative;background:var(--pop-ink);border:3px solid var(--pop-ink);border-radius:13px;box-shadow:none;}
+  .cell.floor{background:#efe7d3;}
+  .cell.floor.alt, .cell.slot.alt{background:#e7dcc2;}   /* checker parity on floors AND targets */
+  .cell.slot{background:#efe7d3;}
+  /* walls: flat cool slate face + a hatched depth shadow. All walls share z-index:1 —
+     above the floor (so the shadow lands on floor) but EQUAL to each other, so DOM order
+     (down/right neighbor paints later) covers a wall's shadow with the next wall's face.
+     The ::before hatch sits behind the opaque .wface (like the crate's box), so it only
+     shows on the offset strip that spills onto the floor. Only .wsh walls cast it. */
+  .cell.wall{position:relative;z-index:1;background:transparent;}
+  .cell.wall .wface{position:absolute;inset:0;background:#3f4a5b;box-shadow:inset 0 0 0 1px rgba(19,19,19,.22);}
+  .cell.wall.wsh::before{content:"";position:absolute;inset:0;z-index:-1;
+    background-image:repeating-linear-gradient(45deg,rgba(19,19,19,.33) 0 1px,transparent 1px 4px);
+    mix-blend-mode:multiply;transform:translate(3px,3px);}
+  .cell.slot::after{inset:24%;border:2px dashed rgba(19,19,19,.42);border-radius:4px;}
+  /* crates: beveled keycaps — NO ink outline (they're game pieces you push, not UI
+     chrome). gold (loose) → green (seated); state stays unambiguous by colour. Bevel
+     (top highlight + bottom shadow) gives depth; hatched drop-shadow faded to 33%. */
+  .crate .box{background:linear-gradient(180deg,#ffd45e,#f7bb24);color:var(--pop-ink);border:0;border-radius:7px;
+    box-shadow:inset 0 2px 0 rgba(255,255,255,.5), inset 0 -3px 0 rgba(0,0,0,.14);}
+  .crate.green .box{background:linear-gradient(180deg,#4ed982,#30b962);color:#fff;}
+  .crate::before{content:"";position:absolute;left:8%;top:8%;width:84%;height:84%;border-radius:7px;z-index:-1;
+    background-image:repeating-linear-gradient(45deg,rgba(19,19,19,.33) 0 1px,transparent 1px 4px);
+    mix-blend-mode:multiply;transform:translate(2px,3px);}
+  .crate.ghost::before{display:none;}
+  /* player: beveled cobalt token (no ink ring). z-index:3 makes the mover a stacking
+     context (above crates); the hatched drop-shadow ::before sits behind the disc, which
+     (opaque) covers all but the offset strip — same layering as the crate's box. */
+  .player{z-index:3;}
+  .player .avatar{width:62%;height:62%;
+    background:radial-gradient(circle at 38% 32%, #7089f2, var(--pop-cobalt));
+    box-shadow:inset 0 -2px 2px rgba(0,0,0,.22), inset 0 2px 1px rgba(255,255,255,.22);}
+  .player::before{content:"";position:absolute;left:19%;top:19%;width:62%;height:62%;border-radius:50%;z-index:-1;
+    background-image:repeating-linear-gradient(45deg,rgba(19,19,19,.33) 0 1px,transparent 1px 4px);
+    mix-blend-mode:multiply;transform:translate(2px,3px);}
+  /* push preview ghost: neutral (no state color), dashed ink */
+  .crate.ghost .box{background:rgba(19,19,19,.07);color:rgba(19,19,19,.4);
+    border:2.5px dashed var(--pop-ink);box-shadow:none;outline:none;}
+  /* controls */
+  .moves .lbl{color:#7a7768;font-weight:900;}
+  .moves b{color:var(--pop-ink);}
+  .ctl.undo, .ctl.reset{background:#fff;border:2.5px solid var(--pop-ink);color:var(--pop-ink);
+    box-shadow:2px 2px 0 var(--pop-ink);border-radius:12px;}
+  .ctl.undo:active, .ctl.reset:active{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--pop-ink);}
+  .ctl.seeresult{background:var(--pop-yellow);border:2.5px solid var(--pop-ink);color:var(--pop-ink);
+    box-shadow:2px 2px 0 var(--pop-ink);}
+  .cratechk{background:var(--pop-pink);color:#fff;border:2px solid var(--pop-ink);box-shadow:none;}
+  .tapfx::after{border-color:var(--pop-cobalt);}
+
+  /* ================= utility overlays (Stats / Help / Archive) — Halftone Pop ================= */
+  .overlay .card{background:#fff;border:3px solid var(--pop-ink);border-radius:18px;
+    box-shadow:6px 8px 0 var(--pop-ink);color:var(--pop-ink);padding:24px 22px;}
+  .overlay .card h2{color:var(--pop-ink);font-weight:900;text-transform:uppercase;letter-spacing:.02em;font-size:22px;margin:0 0 16px;}
+  .overlay .card p{color:#5b5848;}
+  .card .closeX{background:#fff;border:2.5px solid var(--pop-ink);color:var(--pop-ink);border-radius:8px;
+    width:34px;height:34px;font-weight:900;box-shadow:2.5px 2.5px 0 var(--pop-ink);}
+  .card .closeX:active{transform:translate(1px,1px);box-shadow:1.5px 1.5px 0 var(--pop-ink);}
+  /* pop buttons inside overlays */
+  .overlay .card button.primary, .overlay .card button.ghost{border:3px solid var(--pop-ink);border-radius:14px;
+    box-shadow:4px 5px 0 var(--pop-ink);color:var(--pop-ink);font-weight:900;text-transform:uppercase;letter-spacing:.03em;}
+  .overlay .card button.primary{background:var(--pop-yellow);}
+  .overlay .card button.ghost{background:#fff;}
+  .overlay .card button.primary:active, .overlay .card button.ghost:active{transform:translate(1px,1px);box-shadow:2px 3px 0 var(--pop-ink);}
+  /* stats */
+  .statgrid b{color:var(--pop-ink);}
+  .statgrid span{color:#7a7768;}
+  .nextin{color:#7a7768;} .nextin b{color:var(--pop-ink);}
+  /* how-to-play */
+  .howto li{color:var(--pop-ink);}
+  .howto li b{color:var(--pop-ink);}
+  .howto .hnum{background:var(--pop-pink);color:#fff;border:2.5px solid var(--pop-ink);box-shadow:none;}
+  .howtonote{color:#5b5848;} .howtonote b{color:var(--pop-ink);}
+  .settingrow{border:2.5px solid var(--pop-ink);background:#f7f1e3;}
+  .settingrow .lbl b{color:var(--pop-ink);} .settingrow .lbl small{color:#7a7768;}
+  .switch{background:#d8cdb2;border:2.5px solid var(--pop-ink);}
+  .switch:checked{background:var(--pop-cobalt);}
+  .switch::after{background:#fff;box-shadow:0 0 0 2px var(--pop-ink);top:2px;left:2px;width:20px;height:20px;}
+  .switch:checked::after{left:20px;}
+  /* archive calendar */
+  .monthnav .monthlabel{color:var(--pop-ink);font-weight:900;}
+  .monthnav .stepper{background:#fff;border:2.5px solid var(--pop-ink);color:var(--pop-ink);box-shadow:2px 2px 0 var(--pop-ink);}
+  .monthnav .stepper:active{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--pop-ink);}
+  .calgrid .wd{color:#9a9684;}
+  .calcell{color:#7a7768;border:2px solid transparent;}
+  .calcell.three{background:var(--pop-green);color:#fff;box-shadow:none;border-color:var(--pop-ink);}
+  .calcell.two{background:var(--pop-gold);color:var(--pop-ink);box-shadow:none;border-color:var(--pop-ink);}
+  .calcell.progress{border:2px dashed var(--pop-ink);color:var(--pop-ink);}
+  .calcell.unplayed{border:2px solid rgba(19,19,19,.2);color:#9a9684;}
+  .calcell.void{color:#b8b09a;opacity:.5;}
+  .calcell.today{outline:2.5px solid var(--pop-cobalt);outline-offset:-2px;}
+  .callegend{color:#7a7768;}
+  .callegend i.three{background:var(--pop-green);}
+  .callegend i.two{background:var(--pop-gold);}
+  .callegend i.none{border:2px solid rgba(19,19,19,.25);}
 </style>
 </head>
 <body>
@@ -506,50 +732,52 @@
   <button class="ctl seeresult" id="seeResultBtn" style="display:none" aria-label="See your result"><span class="cratechk"></span>See result</button>
 </div>
 
-<!-- Daily landing (Sealed Crates) — opaque, board-free until Play -->
-<div class="overlay solid show" id="startOverlay">
+<!-- Daily landing — Halftone Pop: cobalt hero + cream content (mirrors the win) -->
+<div class="overlay solid landpop show" id="startOverlay">
   <button class="help" id="landHelpBtn" aria-label="How to play">?</button>
-  <div class="card landing">
-    <div class="landbrand">SPELLOBAN</div>
-    <p class="landtag">Daily anagram, solved one push at a time.</p>
-    <div class="streak" id="landStreak" role="img" aria-label=""></div>
-    <div class="datecard">
-      <div class="datenav">
-        <button class="stepper" id="datePrev" aria-label="Previous day">‹</button>
-        <button class="daypick" id="dayPick" aria-label="Browse the archive calendar">
-          <svg class="calicon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg>
-          <span class="dailyline" id="dailyLine"></span>
-        </button>
-        <button class="stepper" id="dateNext" aria-label="Next day">›</button>
+  <div class="landscreen">
+    <div class="winhero landhero">
+      <div class="landbrand">SPELLOBAN</div>
+      <p class="landtag balance">Daily anagram, solved one push at a time.</p>
+      <div class="puzzlebox">
+        <button class="stepper" id="datePrev" aria-label="Previous day"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="pbody">
+          <button class="daypick" id="dayPick" aria-label="Browse the archive calendar"><span class="dailyline" id="dailyLine"></span></button>
+          <div class="stars landstars" id="landStars" aria-hidden="true"></div>
+          <div class="dailysub" id="dailySub"></div>
+          <div class="result" id="landResult"></div>
+        </div>
+        <button class="stepper" id="dateNext" aria-label="Next day"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg></button>
       </div>
-      <div class="dailysub" id="dailySub"></div>
-      <div class="stars landstars" id="landStars" aria-hidden="true"></div>
-      <div class="result" id="landResult"></div>
     </div>
-    <div class="countdown" id="landCountdown"></div>
-    <button class="primary" id="playBtn">▶ Play</button>
-    <button class="ghost" id="restartBtn" style="display:none">↻ Restart</button>
-    <div class="testnote">⚙ Testing — ‹ › or tap the date to browse</div>
+    <div class="wincontent landbody">
+      <div class="landstreak" id="landStreak" role="img" aria-label=""></div>
+      <div class="countdown" id="landCountdown"></div>
+      <div class="htwrap"><span class="htsh"></span><button class="popbtn share" id="playBtn">▶ Play</button></div>
+    </div>
   </div>
 </div>
 
-<!-- Win overlay -->
-<div class="overlay" id="winOverlay">
-  <div class="card">
-    <button class="closeX" id="winCloseBtn" aria-label="Close and view your solved board">✕</button>
-    <h2>SOLVED!</h2>
-    <div class="stars" id="winStars" aria-hidden="true"></div>
-    <div class="big"><span id="winMoves">0</span> moves</div>
-    <div class="record" id="winRecord"></div>
-    <button class="ghost" id="copyBtn">Copy result</button>
-    <button class="primary" id="playAgainBtn">Play again</button>
-    <div class="statgrid" id="winStatgrid">
-      <div><b id="winStPlayed">0</b><span>Solved</span></div>
-      <div><b id="winStStreak">0</b><span>Streak</span></div>
-      <div><b id="winStBest">0</b><span>Best</span></div>
+<!-- Win overlay — Halftone Pop: full-bleed cobalt hero + cream content -->
+<div class="overlay winpop" id="winOverlay">
+  <div class="winscreen">
+    <div class="winhero">
+      <button class="winx" id="winCloseBtn" aria-label="Close and view your solved board">✕</button>
+      <div class="winid" id="winId">Spelloban</div>
+      <div class="stars" id="winStars" aria-hidden="true"></div>
+      <div class="winmoves"><span id="winMoves">0</span></div>
+      <div class="winmoveslbl">moves</div>
+      <hr class="winsep">
+      <div id="winRecord"></div>
     </div>
-    <div class="nextin" id="winNext"></div>
-    <button class="ghost" id="backHomeBtn">Menu</button>
+    <div class="wincontent">
+      <div class="htwrap"><span class="htsh"></span><button class="popbtn share" id="copyBtn">⇱  Share</button></div>
+      <div class="htwrap"><span class="htsh"></span>
+        <div class="winstreak" id="winStreak"></div>
+      </div>
+      <div class="htwrap"><span class="htsh"></span><button class="popbtn playagain" id="playAgainBtn">↻  Play again</button></div>
+      <button class="popbtn menu" id="backHomeBtn">Menu</button>
+    </div>
   </div>
 </div>
 
@@ -878,8 +1106,8 @@ function loadPuzzle(puzzleJson){
 
 function buildBoard(){
   const s = game.state;
-  boardEl.style.setProperty("--cols", s.cols);
-  boardEl.style.setProperty("--rows", s.rows);
+  document.documentElement.style.setProperty("--cols", s.cols);   // on :root so --bw/--cell (shared with the page dots) recompute
+  document.documentElement.style.setProperty("--rows", s.rows);
   hidePushGhost();                 // drop any stale ghost before wiping the board
   boardEl.innerHTML = "";
   ghostEl = null;                  // innerHTML wipe detaches it; forget the ref
@@ -891,7 +1119,14 @@ function buildBoard(){
       const wall = s.terrain[r][c] === "wall";
       const slot = slotLetterAt(s, r, c) !== null;
       cell.className = "cell " + (wall ? "wall" : slot ? "slot" : "floor");
-      if (!wall && !slot && (r + c) % 2 === 0) cell.classList.add("alt");
+      if (!wall && (r + c) % 2 === 0) cell.classList.add("alt");   // checker parity on floors AND target squares
+      // walls cast a down-right depth shadow onto the floor — except the right column
+      // and bottom row, whose shadow would spill off-board and clip. The opaque face
+      // is a child element so the hatched ::before shadow can sit behind it.
+      if (wall){
+        const face = document.createElement("div"); face.className = "wface"; cell.appendChild(face);
+        if (r < s.rows - 1 && c < s.cols - 1) cell.classList.add("wsh");
+      }
       boardEl.appendChild(cell);
     }
   }
@@ -1307,34 +1542,57 @@ function addDays(dateStr, delta){
   const t = new Date(Date.UTC(y, m - 1, d) + delta * 86400000);
   return `${t.getUTCFullYear()}-${String(t.getUTCMonth()+1).padStart(2,"0")}-${String(t.getUTCDate()).padStart(2,"0")}`;
 }
-// last-7-days solved dots (most recent = rightmost), reflecting real calendar days
-// Landing streak module: a prominent 🔥 count + a 7-dot week (last 7 days). Built
-// from stats ONLY (never viewedDate) so it reads as YOUR ongoing daily streak,
-// identical on today and archive views. Zero-streak shows a start prompt, never
-// "🔥 0". Decorative visuals; the container's aria-label is the single readout.
+// Shared weekday-tile week (Mon–Sun) built from stats.history. Earned days fill
+// pink, today is gold (ringed cobalt), the rest empty — so the row says WHICH days,
+// not just a count. Built from stats ONLY (never viewedDate) so it reads as YOUR
+// ongoing daily streak, identical on today and archive views. Used by both the
+// landing streak module and the win card.
+function weekTilesHTML(s){
+  const today = getToday();
+  const hist = new Set(s.history || []);
+  const dow = (new Date(today + "T00:00:00").getDay() + 6) % 7;   // 0 = Monday
+  const monday = addDays(today, -dow);
+  const L = ["M","T","W","T","F","S","S"];
+  let html = "", solved = 0;
+  for (let i = 0; i < 7; i++){
+    const d = addDays(monday, i);
+    const earned = hist.has(d);
+    if (earned) solved++;
+    const cls = d === today ? "today" : (earned ? "on" : (d > today ? "future" : "off"));
+    html += `<div class="wtile ${cls}">${L[i]}</div>`;
+  }
+  return { html, solved };
+}
+// Landing streak module: the same white streak card as the win (🔥 count + weekday
+// week), tap → Stats. Zero-streak shows a start prompt, never "🔥 0". Decorative;
+// the container's aria-label is the readout.
 function renderStreak(s){
   const el = document.getElementById("landStreak");
   if (!el) return;
-  const today = getToday();
-  const hist = new Set(s.history || []);
-  let dots = "", solvedCount = 0;
-  for (let i = 6; i >= 0; i--){
-    const d = addDays(today, -i);
-    const on = hist.has(d);
-    if (on) solvedCount++;
-    dots += `<span class="dot${on ? " on" : (d === today ? " today" : "")}"></span>`;
-  }
+  const { html, solved } = weekTilesHTML(s);
   let head, label;
   if (s.curStreak >= 1){
-    head = `<div class="streakcount"><span class="fire">🔥</span><b>${s.curStreak}</b><span class="streaklbl">day streak</span></div>`;
-    label = `${s.curStreak} day streak. ${solvedCount} of the last 7 days solved.`;
+    head = `🔥 ${s.curStreak}-day streak`;
+    label = `${s.curStreak} day streak. ${solved} of this week solved.`;
   } else {
-    head = `<div class="streakstart">${s.played ? "Start a new streak — solve today" : "Start your streak — solve today"}</div>`;
+    head = s.played ? "Start a new streak" : "Start your streak";
     label = s.played ? "Streak broken. Solve today to start a new one."
                      : "No streak yet. Solve today to start one.";
   }
   el.setAttribute("aria-label", label);
-  el.innerHTML = head + `<div class="streakdots">${dots}</div>`;
+  el.innerHTML = `<div class="winstreakhead">${head}</div><div class="winweek">${html}</div>`;
+}
+
+// Win-card streak week: same weekday tiles, plus the folded #winNext countdown target.
+function renderWinStreak(s){
+  const el = document.getElementById("winStreak");
+  if (!el) return;
+  const head = s.curStreak >= 1
+    ? `🔥 ${s.curStreak}-day streak`
+    : (s.played ? "Start a new streak" : "Start your streak");
+  el.innerHTML = `<div class="winstreakhead">${head}</div>`
+    + `<div class="winweek">${weekTilesHTML(s).html}</div>`
+    + `<div class="winnext" id="winNext"></div>`;
 }
 
 // don't touch persisted records on the unit-test page
@@ -1482,7 +1740,7 @@ const Platform = (() => {
 
 // gold/green/blue confetti burst over the win overlay (optimal solves only)
 function confettiBurst(){
-  const colors = ["#ffc93c","#3ec46d","#5aa9ff","#e0bd6a","#ff8f5a"];
+  const colors = ["#FFD23E","#FF3D9D","#2E4BE8","#FFC42E","#ffffff"];
   for (let i = 0; i < 40; i++){
     const p = document.createElement("div");
     p.className = "confetti";
@@ -1562,9 +1820,14 @@ function showWinModal(){
   const moves = game.state.moves;
   const perfect = isOptimal(moves, optimal);
 
-  // Headline is always "SOLVED!" — the ★ rating conveys how well you did, not a
-  // word. An exact-optimal solve still earns the gold card + confetti as a reward.
-  document.querySelector("#winOverlay .card").classList.toggle("perfect", perfect);
+  // Perfect (move-optimal) solves earn the crown chip + confetti; hook stays on
+  // the screen for future perfect styling. Guarded so a bare test board can't crash.
+  document.querySelector("#winOverlay .winscreen")?.classList.toggle("perfect", perfect);
+
+  // id line: SPELLOBAN · #N (puzzle number from the puzzle's own baked date)
+  const pdate = game.state.meta && game.state.meta.date;
+  document.getElementById("winId").textContent =
+    "Spelloban" + (pdate ? " · #" + puzzleNumber(pdate) : "");
 
   // star rating (hidden when the puzzle has no optimal). The optimal move
   // count itself is never shown — the ★s hint at it; players discover it.
@@ -1594,25 +1857,34 @@ function showWinModal(){
   // DATE_OVERRIDE (?date=) makes getToday() lie, which would let a streak be farmed
   // by stepping the override forward and solving — so it never advances the streak.
   const stats = (IS_TEST || !isDaily || game.debugReplay || DATE_OVERRIDE) ? loadStats() : recordSolve();
-  document.getElementById("winStPlayed").textContent = stats.played;
-  document.getElementById("winStStreak").textContent = stats.curStreak;
-  document.getElementById("winStBest").textContent = stats.bestStreak;
 
   // per-puzzle personal best + attempt count for THIS puzzle (skipped on a debug replay)
   const { rec, first, improved } = game.debugReplay
     ? { rec: getRecord(game.state.id), first: false, improved: false }
     : recordBest(game.state.id, moves);
   game.debugReplay = false;
-  const recordEl = document.getElementById("winRecord");
-  recordEl.className = "record" + (improved ? " newbest" : "");
-  recordEl.innerHTML = !rec.tries ? ""
-    : improved ? `🎉 New best! · Tries <b>${rec.tries}</b>`
-    : `Best <b>${rec.best}</b> · Tries <b>${rec.tries}</b>`;
 
-  // countdown to the next daily — only when the solved puzzle IS today's daily
+  // record-state slot (under the moves): precedence perfect → new-best → standard.
+  // The quiet "Best N" line goes loud (a tilted sticker) when THIS run sets a
+  // record; a crown marks move-optimal — on the sticker when you just nailed it,
+  // appended to the quiet line when your existing best was already perfect.
+  const recordEl = document.getElementById("winRecord");
+  if (perfect){
+    recordEl.className = "sticker"; recordEl.innerHTML = "Perfect 👑";
+  } else if (improved){
+    recordEl.className = "sticker"; recordEl.innerHTML = "New best 🎉";
+  } else if (rec.best != null){
+    recordEl.className = "muted";
+    recordEl.innerHTML = `Best ${rec.best}${isOptimal(rec.best, optimal) ? " 👑" : ""}`;
+  } else {
+    recordEl.className = "muted"; recordEl.innerHTML = "";
+  }
+
+  // streak week (Mon–Sun) + folded countdown, in the streak card
+  renderWinStreak(stats);
+  stopCountdown();                              // clear any orphaned timers; #winNext is freshly rebuilt above
   const nextEl = document.getElementById("winNext");
-  if (isDaily) startCountdown(nextEl);
-  else { stopCountdown(nextEl); nextEl.innerHTML = ""; }
+  if (isDaily && nextEl) startCountdown(nextEl);
 
   openWinCard();
   if (perfect) confettiBurst();
@@ -1916,18 +2188,18 @@ function renderLanding(){
   renderLandStars(document.getElementById("landStars"), solved, rec.best, daily.optimal);
   const diff = dayInfoFor(daily).label;            // difficulty WORD from DAY_INFO (meta.day)
 
-  document.getElementById("dailyLine").textContent = prettyDate(viewedDate);
-  const sub = ["#" + puzzleNumber(viewedDate)];
-  if (diff) sub.push(diff);
-  document.getElementById("dailySub").textContent = sub.join(" · ");
+  // puzzle number + difficulty is the prominent headline (and the archive opener);
+  // the date is the secondary line beneath the rating.
+  const idParts = ["#" + puzzleNumber(viewedDate)];
+  if (diff) idParts.push(diff);
+  document.getElementById("dailyLine").textContent = idParts.join(" · ");
+  document.getElementById("dailySub").textContent = prettyDate(viewedDate);
 
   const resEl = document.getElementById("landResult");
   const cdEl  = document.getElementById("landCountdown");
   const playBtn = document.getElementById("playBtn");
-  const restartBtn = document.getElementById("restartBtn");
 
   if (solved){
-    restartBtn.style.display = "none";
     resEl.innerHTML = isToday ? `✓ Solved in <b>${rec.best}</b> moves`
                               : `✓ Best <b>${rec.best}</b> moves`;
     if (isToday) startCountdown(cdEl); else { stopCountdown(cdEl); cdEl.textContent = ""; }
@@ -1937,14 +2209,13 @@ function renderLanding(){
     playBtn.textContent = "▶ Play again";
     playBtn.onclick = () => startPuzzle(daily);
   } else {
+    // In-progress is conveyed solely by the "Resume" button — no result line, no
+    // separate Restart (kept the front door to one action per state).
     const inProgress = !!loadProgress(daily.id);
-    resEl.innerHTML = inProgress ? `In progress · <b>${loadProgress(daily.id).moves}</b> moves` : "";
+    resEl.innerHTML = "";
     stopCountdown(cdEl); cdEl.textContent = "";
     playBtn.textContent = inProgress ? "▶ Resume" : "▶ Play";
     playBtn.onclick = () => startPuzzle(daily);
-    // In progress → offer a secondary Restart: drop the saved snapshot, start fresh.
-    restartBtn.style.display = inProgress ? "" : "none";
-    restartBtn.onclick = () => { clearProgress(daily.id); startPuzzle(daily); };
   }
 
   document.getElementById("datePrev").disabled = viewedDate <= earliestBakedDate();
@@ -2056,16 +2327,19 @@ archiveOverlay.addEventListener("click", (e) => { if (e.target === archiveOverla
 // board and "Back to landing" from the win card both land on the day you were on
 // (today→today, archive→that day). Progress autosaves per move, so leaving an
 // unsolved puzzle is safe; that day just reads "Resume".
-function openLanding(){
+function openLanding(focusPlay = true){
   clearWinUI();                                // close win card / peek if open
   document.body.classList.add("landing-up");
   renderLanding();
   startOverlay.classList.add("show");
-  document.getElementById("playBtn").focus({ preventScroll: true });
+  // Focus the primary action for in-app returns (Home / back-to-menu). Skipped on
+  // boot: a keyboard-initiated page load (URL-enter / Cmd-R) would otherwise trip
+  // :focus-visible and paint a stray ring the moment the landing appears.
+  if (focusPlay) document.getElementById("playBtn").focus({ preventScroll: true });
 }
 function showStart(){                           // boot: always open on today
   viewedDate = getToday();
-  openLanding();
+  openLanding(false);
 }
 
 playAgainBtn.addEventListener("click", () => {
