@@ -39,7 +39,7 @@
     padding:calc(env(safe-area-inset-top) + var(--vpad)) 10px calc(env(safe-area-inset-bottom) + var(--vpad));
     min-height:100%;
     overscroll-behavior:none;
-    touch-action:manipulation;
+    touch-action:none;               /* iOS ignores overscroll-behavior on the root — touch-action is what actually locks page scroll/rubber-band */
     user-select:none;-webkit-user-select:none;
   }
   /* Phones fill the screen (safe-area only); give desktop/tablet room off the edges. */
@@ -56,6 +56,9 @@
     display:flex; align-items:center; justify-content:center;
   }
   .controls{ width:100%; max-width:var(--maxw); flex:0 0 auto; margin-top:12px; }
+  /* lock the whole play surface (incl. the stage bezel around the board) from
+     scrolling — a swipe that starts just off the board must not scroll the page */
+  .topbar, .stage, .controls{ touch-action:none; }
 
   /* top bar */
   .topbar{ display:flex; align-items:center; justify-content:space-between; padding:6px 4px 0; gap:8px; }
@@ -261,6 +264,7 @@
   .overlay{
     position:fixed;inset:0;background:rgba(8,10,12,.82);backdrop-filter:blur(3px);
     display:none;align-items:center;justify-content:center;padding:20px;z-index:50;
+    overflow-y:auto;touch-action:pan-y;-webkit-overflow-scrolling:touch;   /* page scroll is locked → a tall modal scrolls itself */
   }
   .overlay.show{display:flex;}
   /* win card eases in (fade + rise) instead of snapping via display:flex —
