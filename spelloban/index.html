@@ -447,6 +447,22 @@
     opacity:0;transition:opacity .2s;pointer-events:none;z-index:60;}
   .toast.show{opacity:1;}
   #testbar{width:100%;padding:6px 10px;font:12px ui-monospace,monospace;text-align:center;flex:0 0 auto;}
+  /* ---- ?device debug frame: the real game (in an iframe) at a phone's Safari
+     content size, with mock status + URL bars blocking the chrome ---- */
+  body.df-host{background:#050607;display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;margin:0;padding:16px;box-sizing:border-box;}
+  body.df-host > *:not(.df-wrap){display:none !important;}
+  .df-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;}
+  .df-caption{color:#8b96a3;font:13px/1.4 system-ui,-apple-system,sans-serif;display:flex;align-items:center;gap:10px;}
+  .df-exit{background:#1b1f24;border:1px solid #2c333b;color:#e7ecf1;border-radius:50%;width:24px;height:24px;padding:0;cursor:pointer;font-size:12px;line-height:1;}
+  .df-phone{position:relative;background:#000;border-radius:44px;box-shadow:0 0 0 10px #16181c,0 22px 60px rgba(0,0,0,.6);overflow:hidden;display:flex;flex-direction:column;}
+  .df-status{position:relative;background:#000;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 30px;font:600 15px system-ui,-apple-system,sans-serif;flex:0 0 auto;}
+  .df-notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:130px;height:26px;background:#000;border-radius:0 0 18px 18px;}
+  .df-batt{width:24px;height:12px;border:1.5px solid rgba(255,255,255,.6);border-radius:3px;position:relative;}
+  .df-batt::after{content:"";position:absolute;inset:1.5px 4px 1.5px 1.5px;background:#fff;border-radius:1px;}
+  .df-view{width:100%;border:0;background:#0e1216;flex:0 0 auto;display:block;}
+  .df-safari{background:#161618;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;flex:0 0 auto;}
+  .df-url{background:#2c2c2e;color:#c9c9cc;font:13px system-ui,-apple-system,sans-serif;padding:9px 18px;border-radius:12px;min-width:62%;text-align:center;}
+  .df-home{width:135px;height:5px;background:#fff;border-radius:3px;opacity:.85;}
 </style>
 </head>
 <body>
@@ -509,7 +525,7 @@
     <div class="countdown" id="landCountdown"></div>
     <button class="primary" id="playBtn">▶ Play</button>
     <button class="ghost" id="restartBtn" style="display:none">↻ Restart</button>
-    <div class="testnote">⚙ Testing — step ‹ › or tap the date to browse past days</div>
+    <div class="testnote">⚙ Testing — ‹ › or tap the date to browse</div>
   </div>
 </div>
 
@@ -2100,6 +2116,15 @@ document.getElementById("backHomeBtn").addEventListener("click", openLanding);  
     render();
     win(Math.floor(Math.random() * game.state.crates.length));   // random epicenter so previews vary
   });
+
+  // debug: constrain the game to an iPhone 13 mini Safari viewport (mock chrome bars)
+  const deviceBtn = document.createElement("button");
+  deviceBtn.textContent = "📱 iPhone 13 mini";
+  deviceBtn.style.cssText = "position:fixed;left:8px;bottom:calc(env(safe-area-inset-bottom) + 92px);z-index:70;font-size:12px;padding:7px 10px;";
+  document.body.appendChild(deviceBtn);
+  deviceBtn.addEventListener("click", () => {
+    const u = new URL(location.href); u.searchParams.set("device", "iphone13mini"); location.href = u.href;
+  });
 })();
 
 // paste overlay
@@ -2140,6 +2165,7 @@ Platform.init().then(() => {
    ?seq=uudlr...               → apply moves (u/d/l/r) via the real rule
    ?goto=r,c                   → tap-walk the player to cell [r,c]
    ?date=YYYY-MM-DD            → simulate that local day (daily rollover)
+   ?device[=iphone13mini]      → frame the game at a phone's Safari content size
    Combine: ?puzzle=2&seq=uurr&goto=1,1
    ============================================================ */
 window.SPELLOBAN = {
@@ -2154,8 +2180,35 @@ window.SPELLOBAN = {
   dailyPuzzle, getToday, msToNextLocalMidnight
 };
 
+// ?device — preview the real game at a phone's Safari content size. Rendered in an
+// iframe so the game's own position:fixed / dvh / safe-area sizing all resolve
+// against the phone-sized viewport, no game CSS touched. Bars are tunable pt.
+const DEVICE_FRAMES = {
+  iphone13mini: { label: "iPhone 13 mini", w: 375, h: 812, top: 50, bottom: 96 },  // top=status bar, bottom=Safari URL/tab bar
+};
+function buildDeviceFrame(key){
+  const d = DEVICE_FRAMES[(key || "").toLowerCase()] || DEVICE_FRAMES.iphone13mini;
+  const contentH = d.h - d.top - d.bottom;
+  const u = new URL(location.href); u.searchParams.delete("device");   // iframe loads the game un-framed
+  const src = u.pathname + u.search;
+  document.body.classList.add("df-host");
+  const wrap = document.createElement("div");
+  wrap.className = "df-wrap";
+  wrap.innerHTML =
+    `<div class="df-caption">${d.label} · Safari — content ${d.w}×${contentH}` +
+    `<button class="df-exit" aria-label="Exit device frame">✕</button></div>` +
+    `<div class="df-phone" style="width:${d.w}px;height:${d.h}px">` +
+      `<div class="df-status" style="height:${d.top}px"><span>9:41</span><span class="df-notch"></span><span class="df-batt"></span></div>` +
+      `<iframe class="df-view" title="game preview" src="${src}" style="height:${contentH}px"></iframe>` +
+      `<div class="df-safari" style="height:${d.bottom}px"><div class="df-url">🔒 blam.xyz/spelloban</div><div class="df-home"></div></div>` +
+    `</div>`;
+  document.body.appendChild(wrap);
+  wrap.querySelector(".df-exit").addEventListener("click", () => { location.href = src; });
+}
+
 (function devHooks(){
   const p = new URLSearchParams(location.search);
+  if (p.has("device")){ buildDeviceFrame(p.get("device")); return; }   // framed phone preview → skip normal boot
   if (p.has("puzzle")){
     const i = Number(p.get("puzzle"));
     if (PUZZLES[i]) loadPuzzle(PUZZLES[i]);
