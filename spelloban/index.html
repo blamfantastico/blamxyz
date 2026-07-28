@@ -220,7 +220,7 @@
   /* Reset (left) and Undo (right): matching labeled icon buttons */
   button.ctl{ border-radius:12px; }
   .ctl svg{ width:17px; height:17px; flex:0 0 auto; }
-  .ctl.undo, .ctl.reset{ border:1px solid #2c333b; padding:12px 16px;
+  .ctl.undo, .ctl.reset, .ctl.assist{ border:1px solid #2c333b; padding:12px 16px;
     font-size:14px; display:inline-flex; align-items:center; gap:7px; flex:0 0 auto; }
   .ctl.undo{ background:var(--floor); }               /* filled */
   .ctl.reset{ background:transparent; color:var(--muted); }   /* outline / secondary */
@@ -640,9 +640,20 @@
   /* controls */
   .moves .lbl{color:#7a7768;font-weight:900;}
   .moves b{color:var(--pop-ink);}
-  .ctl.undo, .ctl.reset{background:#fff;border:2.5px solid var(--pop-ink);color:var(--pop-ink);
+  .ctl.undo, .ctl.reset, .ctl.assist{background:#fff;border:2.5px solid var(--pop-ink);color:var(--pop-ink);
     box-shadow:2px 2px 0 var(--pop-ink);border-radius:12px;}
-  .ctl.undo:active, .ctl.reset:active{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--pop-ink);}
+  .ctl.undo:active, .ctl.reset:active, .ctl.assist:active{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--pop-ink);}
+  /* assist active (picking a wall): cobalt fill; the board highlights removable walls */
+  .ctl.assist.active{background:var(--pop-cobalt);color:#fff;}
+  body.assisting .board{cursor:crosshair;}
+  body.assisting .cell.wall .wface{outline:2.5px solid var(--pop-cobalt);outline-offset:-3px;}
+  /* a wall lifted by Assist → faint dashed ghost on the now-floor cell */
+  .cell.removed::after{content:"";position:absolute;inset:18%;border:2px dashed rgba(46,75,232,.35);border-radius:5px;}
+  /* half star (assist ½ floor): left half gold, right half empty, ink stroke */
+  #winOverlay #winStars .s.half, .puzzlebox .stars .s.half{
+    -webkit-text-stroke:2px var(--pop-ink);paint-order:stroke fill;text-shadow:none;
+    background:linear-gradient(90deg,var(--pop-gold) 50%,rgba(255,255,255,.32) 50%);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;}
   .ctl.seeresult{background:var(--pop-yellow);border:2.5px solid var(--pop-ink);color:var(--pop-ink);
     box-shadow:2px 2px 0 var(--pop-ink);}
   .cratechk{background:var(--pop-pink);color:#fff;border:2px solid var(--pop-ink);box-shadow:none;}
@@ -728,6 +739,7 @@
 <div class="controls">
   <button class="ctl reset" id="resetBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>Reset</button>
   <div class="moves"><span class="lbl">MOVES</span><b id="moveCount">0</b></div>
+  <button class="ctl assist" id="assistBtn" aria-label="Assist — remove a wall (costs a star)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M8.5 12h7"/></svg>Assist</button>
   <button class="ctl undo" id="undoBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>Undo</button>
   <button class="ctl seeresult" id="seeResultBtn" style="display:none" aria-label="See your result"><span class="cratechk"></span>See result</button>
 </div>
@@ -943,6 +955,7 @@ function parsePuzzle(p){
     crates: p.crates.map(c => ({ r:c.pos[0], c:c.pos[1], letter:c.letter })), // mobile
     player: [p.player[0], p.player[1]],
     moves: 0,
+    removed: [],                                         // walls lifted by Assist this run ([[r,c],…])
     meta: { anagram:p.anagram || "", answer:p.answer || "", optimal: p.optimal || null }
   };
 }
@@ -955,6 +968,7 @@ function cloneState(s){
     crates:s.crates.map(c => ({ r:c.r, c:c.c, letter:c.letter })),
     player:[s.player[0], s.player[1]],
     moves:s.moves,
+    removed:(s.removed || []).map(x => [x[0], x[1]]),    // per-state snapshot (own array)
     meta:s.meta
   };
 }
@@ -963,6 +977,7 @@ function cloneState(s){
 
 function isWall(state, r, c){
   if (r < 0 || c < 0 || r >= state.rows || c >= state.cols) return true;
+  if (state.removed){ for (const [rr, cc] of state.removed) if (rr === r && cc === c) return false; }
   return state.terrain[r][c] === "wall";
 }
 function crateIndexAt(state, r, c){
@@ -1116,9 +1131,10 @@ function buildBoard(){
   for (let r = 0; r < s.rows; r++){
     for (let c = 0; c < s.cols; c++){
       const cell = document.createElement("div");
-      const wall = s.terrain[r][c] === "wall";
+      const wall = isWall(s, r, c);
+      const removed = s.terrain[r][c] === "wall" && !wall;   // a wall lifted by Assist → now floor
       const slot = slotLetterAt(s, r, c) !== null;
-      cell.className = "cell " + (wall ? "wall" : slot ? "slot" : "floor");
+      cell.className = "cell " + (wall ? "wall" : slot ? "slot" : "floor") + (removed ? " removed" : "");
       if (!wall && (r + c) % 2 === 0) cell.classList.add("alt");   // checker parity on floors AND target squares
       // walls cast a down-right depth shadow onto the floor — except the right column
       // and bottom row, whose shadow would spill off-board and clip. The opaque face
@@ -1316,13 +1332,41 @@ function undo(){
 
 function reset(){
   if (game.won || game.animating) return;   // never reset a solved board out from under the win flow
-  game.state = cloneState(game.initial);
+  game.state = cloneState(game.initial);    // fresh state → removed:[] (assists cleared)
   game.history = [];
   game.won = false;
   game.counted = false;   // a fresh run → its attempt hasn't been counted yet
+  setAssistMode(false);
   clearProgress(game.state.id);   // starting over → drop the saved snapshot
   clearWinUI();
+  buildBoard();            // rebuild the grid so any lifted walls are restored
   render();
+}
+
+// ---- Assist: remove a wall (spatial hint; costs stars, keeps the streak) ----
+// Enter "pick a wall" mode; tapping an INTERIOR wall lifts it. Committed — Undo
+// won't restore it (the removal is propagated into the undo history); Reset does.
+function setAssistMode(on){
+  game.assistMode = !!on && !game.won && !!game.state;
+  document.body.classList.toggle("assisting", game.assistMode);
+  const btn = document.getElementById("assistBtn");
+  if (btn) btn.classList.toggle("active", game.assistMode);
+}
+function removeWall(r, c){
+  const s = game.state;
+  if (!s || game.won || game.animating) return false;
+  if (!isWall(s, r, c)) return false;                                  // must be a (still-present) wall
+  if (r <= 0 || c <= 0 || r >= s.rows - 1 || c >= s.cols - 1) return false;  // interior only — never the frame
+  s.removed.push([r, c]);
+  game.history.forEach(h => { if (h.removed) h.removed.push([r, c]); });     // Undo can't restore it
+  if (!game.counted){ countTry(s.id); game.counted = true; }                 // first action counts an attempt
+  buildBoard(); render(); saveProgress();
+  return true;
+}
+function handleAssistTap(cell){
+  const removed = cell && removeWall(cell[0], cell[1]);
+  setAssistMode(false);
+  toast(removed ? "Wall removed — costs a star" : "Tap an interior wall to remove it");
 }
 
 // transient ripple at a tapped cell
@@ -1451,6 +1495,30 @@ function starsFor(moves, optimal){
   return 1;
 }
 function isOptimal(moves, optimal){ return !!optimal && moves <= optimal; }
+
+// Assist scoring: each removed wall (assist) drops one star, floored at ½ so a
+// solved puzzle never shows 0. Any assist forfeits 3★ and 👑 PERFECT (falls out
+// automatically: 3 − 1 = 2). See docs/assist-feature.md.
+function assistedStars(moves, optimal, assists){
+  const raw = starsFor(moves, optimal);
+  if (!raw || !assists) return raw;                 // no optimal → hidden; clean → full ladder
+  return Math.max(0.5, raw - assists);              // assisted → 2 / 1 / ½
+}
+function assistedPerfect(moves, optimal, assists){ return !assists && isOptimal(moves, optimal); }
+// Render up to 3 star spans (full ★ / half / empty ☆) for a numeric star value.
+// Assisted values are only ever {0.5,1,2,3}; the lone half case is the ½ floor.
+function renderStarRow(el, stars, animate){
+  el.innerHTML = "";
+  for (let i = 0; i < 3; i++){
+    const s = document.createElement("span");
+    const frac = stars - i;
+    if (frac >= 1){ s.className = "s on"; s.textContent = "★"; }
+    else if (frac > 0){ s.className = "s half"; s.textContent = "★"; }
+    else { s.className = "s"; s.textContent = "☆"; }
+    if (animate) s.style.animationDelay = (280 + i * 160) + "ms";
+    el.appendChild(s);
+  }
+}
 
 // ---- persistent stats (localStorage) ----
 const STATS_KEY = "spelloban.stats";
@@ -1606,7 +1674,7 @@ function loadRecords(){
 }
 function getRecord(id){
   const r = loadRecords()[id] || {};
-  return { best: r.best || null, tries: r.tries || 0 };
+  return { best: r.best || null, bestAssists: r.bestAssists || 0, tries: r.tries || 0 };   // legacy records → 0 assists (clean)
 }
 function saveRecord(id, rec){
   try { const all = loadRecords(); all[id] = rec; localStorage.setItem(RECORDS_KEY, JSON.stringify(all)); } catch {}
@@ -1617,13 +1685,18 @@ function countTry(id){
   if (!id || IS_TEST) return;
   const rec = getRecord(id); rec.tries++; saveRecord(id, rec);
 }
+// Best is (assists, moves) ranked lexicographically — FEWER ASSISTS ALWAYS WINS,
+// then fewer moves. So a clean solve can never be beaten by an assisted one.
+function scoreBeats(aAssists, aMoves, bAssists, bMoves){
+  return aAssists < bAssists || (aAssists === bAssists && aMoves < bMoves);
+}
 // record a solve; returns { rec, first, improved }.
-// first = first-ever solve of this puzzle; improved = beat a prior best.
-function recordBest(id, moves){
+function recordBest(id, moves, assists){
+  assists = assists || 0;
   const rec = getRecord(id);
   const first = rec.best === null;
-  const improved = !first && moves < rec.best;
-  if (first || improved) rec.best = moves;
+  const improved = !first && scoreBeats(assists, moves, rec.bestAssists, rec.best);
+  if (first || improved){ rec.best = moves; rec.bestAssists = assists; }
   if (id && !IS_TEST) saveRecord(id, rec);
   return { rec, first, improved };
 }
@@ -1639,7 +1712,7 @@ function saveProgress(){                          // snapshot the live board (mi
   const s = game.state;
   if (!s || !s.id || game.won || IS_TEST) return;
   const all = loadAllProgress();
-  all[s.id] = { crates: s.crates.map(c => ({ r:c.r, c:c.c, letter:c.letter })), player: [s.player[0], s.player[1]], moves: s.moves };
+  all[s.id] = { crates: s.crates.map(c => ({ r:c.r, c:c.c, letter:c.letter })), player: [s.player[0], s.player[1]], moves: s.moves, removed: (s.removed || []).map(x => [x[0], x[1]]) };
   try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(all)); } catch {}
 }
 function clearProgress(id){
@@ -1651,8 +1724,10 @@ function resumeProgress(prog){                     // apply a saved snapshot ont
   s.crates = prog.crates.map(c => ({ r:c.r, c:c.c, letter:c.letter }));
   s.player = [prog.player[0], prog.player[1]];
   s.moves = prog.moves;
+  s.removed = (prog.removed || []).map(x => [x[0], x[1]]);   // restore any assist-lifted walls
   game.history = [];        // can't undo past a resume
   game.counted = true;      // this run's attempt was already counted
+  if (s.removed.length) buildBoard();   // reflect lifted walls in the grid
   render();
 }
 
@@ -1763,6 +1838,8 @@ function setSeeResult(on){
   document.getElementById("seeResultBtn").style.display = on ? "" : "none";
   document.getElementById("undoBtn").style.display  = on ? "none" : "";
   document.getElementById("resetBtn").style.display = on ? "none" : "";
+  document.getElementById("assistBtn").style.display = on ? "none" : "";
+  if (on) setAssistMode(false);
 }
 function openWinCard(){
   winOverlay.classList.add("show");
@@ -1818,7 +1895,8 @@ function showWinModal(){
   hideHelp(); hideStats();   // a help/stats popup opened during the ~1s celebration would paint over the win card
   const { optimal } = game.state.meta;
   const moves = game.state.moves;
-  const perfect = isOptimal(moves, optimal);
+  const assists = (game.state.removed || []).length;
+  const perfect = assistedPerfect(moves, optimal, assists);   // clean + optimal only
 
   // Perfect (move-optimal) solves earn the crown chip + confetti; hook stays on
   // the screen for future perfect styling. Guarded so a bare test board can't crash.
@@ -1831,21 +1909,10 @@ function showWinModal(){
 
   // star rating (hidden when the puzzle has no optimal). The optimal move
   // count itself is never shown — the ★s hint at it; players discover it.
-  const stars = starsFor(moves, optimal);
+  const stars = assistedStars(moves, optimal, assists);
   const starsEl = document.getElementById("winStars");
-  starsEl.innerHTML = "";
-  if (stars){
-    for (let i = 0; i < 3; i++){
-      const s = document.createElement("span");
-      s.className = "s" + (i < stars ? " on" : "");
-      s.style.animationDelay = (280 + i * 160) + "ms";
-      s.textContent = i < stars ? "★" : "☆";
-      starsEl.appendChild(s);
-    }
-    starsEl.style.display = "";
-  } else {
-    starsEl.style.display = "none";
-  }
+  if (stars){ renderStarRow(starsEl, stars, true); starsEl.style.display = ""; }
+  else { starsEl.innerHTML = ""; starsEl.style.display = "none"; }
   document.getElementById("winMoves").textContent = moves;
 
   // Streak/played advance ONLY for today's actual daily — never for archive,
@@ -1861,7 +1928,7 @@ function showWinModal(){
   // per-puzzle personal best + attempt count for THIS puzzle (skipped on a debug replay)
   const { rec, first, improved } = game.debugReplay
     ? { rec: getRecord(game.state.id), first: false, improved: false }
-    : recordBest(game.state.id, moves);
+    : recordBest(game.state.id, moves, assists);
   game.debugReplay = false;
 
   // record-state slot (under the moves): precedence perfect → new-best → standard.
@@ -1875,7 +1942,8 @@ function showWinModal(){
     recordEl.className = "sticker"; recordEl.innerHTML = "New best 🎉";
   } else if (rec.best != null){
     recordEl.className = "muted";
-    recordEl.innerHTML = `Best ${rec.best}${isOptimal(rec.best, optimal) ? " 👑" : ""}`;
+    const cleanOptimal = !rec.bestAssists && isOptimal(rec.best, optimal);   // crown only for a clean optimal best
+    recordEl.innerHTML = `Best ${rec.best}${rec.bestAssists ? ` · ${rec.bestAssists} assist${rec.bestAssists > 1 ? "s" : ""}` : ""}${cleanOptimal ? " 👑" : ""}`;
   } else {
     recordEl.className = "muted"; recordEl.innerHTML = "";
   }
@@ -1956,12 +2024,14 @@ function toast(msg){
     const dx = e.clientX - sx, dy = e.clientY - sy;
     const ax = Math.abs(dx), ay = Math.abs(dy);
 
-    if (Math.max(ax, ay) < MIN){           // TAP → walk to the cell
+    if (Math.max(ax, ay) < MIN){           // TAP → remove-a-wall (assist mode) or walk
       hidePushGhost();
       const cell = cellFromPoint(e.clientX, e.clientY);
+      if (game.assistMode){ handleAssistTap(cell); return; }
       if (cell) walkTo(cell[0], cell[1]);
       return;
     }
+    if (game.assistMode){ setAssistMode(false); hidePushGhost(); return; }   // a drag in assist mode → just cancel
     // DRAG resolves only when it started ON a crate → a push. Empty-floor drags
     // are inert: navigation is tap-to-walk (or arrows/WASD), so drag means one
     // thing — grab and push a crate.
@@ -2024,6 +2094,11 @@ document.getElementById("undoBtn").addEventListener("click", undo);
 
 // Reset is a plain labeled button now — one tap restarts (no confirm chip).
 document.getElementById("resetBtn").addEventListener("click", reset);   // reset() ignores taps mid-animation
+document.getElementById("assistBtn").addEventListener("click", () => {
+  if (game.won || game.animating || !game.state) return;
+  setAssistMode(!game.assistMode);
+  if (game.assistMode) toast("Tap a wall to remove it — costs a star");
+});
 
 // "Swipe to move": swiping empty floor takes a directional step. On by default;
 // toggle lives in the How-to-play modal. (Crate drags and tap-to-walk are
@@ -2079,11 +2154,15 @@ const copyBtn = document.getElementById("copyBtn");
 const winCloseBtn = document.getElementById("winCloseBtn");
 const playAgainBtn = document.getElementById("playAgainBtn");
 // shareable result string — used by BOTH the win card and the solved landing
-function shareText(moves, optimal){
-  const stars = starsFor(moves, optimal);
-  const badge = isOptimal(moves, optimal) ? " 👑 PERFECT" : (stars ? " " + "⭐".repeat(stars) : "");
+function shareText(moves, optimal, assists){
+  assists = assists || 0;
+  const stars = assistedStars(moves, optimal, assists);
+  const full = Math.floor(stars), half = stars % 1 >= 0.5;
+  const badge = assistedPerfect(moves, optimal, assists) ? " 👑 PERFECT"
+              : (stars ? " " + "⭐".repeat(full) + (half ? "✬" : "") : "");
+  const asu = assists ? ` · ${assists} assist${assists > 1 ? "s" : ""}` : "";   // honest marker — keeps the daily comparable
   const st = loadStats().curStreak;
-  return `Spelloban — unscrambled in ${moves} moves${badge}${st > 1 ? ` · streak ${st}` : ""}`;
+  return `Spelloban — unscrambled in ${moves} moves${badge}${asu}${st > 1 ? ` · streak ${st}` : ""}`;
 }
 async function copyToClipboard(text){
   try { await navigator.clipboard.writeText(text); return true; }
@@ -2095,12 +2174,12 @@ async function copyToClipboard(text){
   }
 }
 copyBtn.addEventListener("click", async () => {
-  const done = await copyToClipboard(shareText(game.state.moves, game.state.meta.optimal));
+  const done = await copyToClipboard(shareText(game.state.moves, game.state.meta.optimal, (game.state.removed || []).length));
   if (done){
     toast("Copied — share it, or tap ✕ to view your board");
     // momentary in-button confirmation so the action clearly "took"
     copyBtn.textContent = "Copied ✓";
-    setTimeout(() => { copyBtn.textContent = "Copy result"; }, 1400);
+    setTimeout(() => { copyBtn.textContent = "⇱  Share"; }, 1400);
   } else {
     toast("Copy failed");
   }
@@ -2167,16 +2246,10 @@ function startPuzzle(p){
 // Landing star rating: filled per this puzzle's best solve; dim placeholders when
 // unplayed, so the row always holds its space and you can flip dates hunting for
 // puzzles you haven't 3-starred yet.
-function renderLandStars(el, solved, best, optimal){
+function renderLandStars(el, solved, best, optimal, assists){
   if (!el) return;
-  const n = solved ? starsFor(best, optimal) : 0;
-  el.innerHTML = "";
-  for (let i = 0; i < 3; i++){
-    const s = document.createElement("span");
-    s.className = "s" + (i < n ? " on" : "");
-    s.textContent = i < n ? "★" : "☆";
-    el.appendChild(s);
-  }
+  const stars = solved ? assistedStars(best, optimal, assists || 0) : 0;   // best's assists (0 if clean)
+  renderStarRow(el, stars, false);
 }
 
 function renderLanding(){
@@ -2185,7 +2258,7 @@ function renderLanding(){
   const daily = dailyPuzzle(viewedDate);
   const rec = getRecord(daily.id);
   const solved = rec.best !== null;
-  renderLandStars(document.getElementById("landStars"), solved, rec.best, daily.optimal);
+  renderLandStars(document.getElementById("landStars"), solved, rec.best, daily.optimal, rec.bestAssists);
   const diff = dayInfoFor(daily).label;            // difficulty WORD from DAY_INFO (meta.day)
 
   // puzzle number + difficulty is the prominent headline (and the archive opener);
@@ -2200,8 +2273,9 @@ function renderLanding(){
   const playBtn = document.getElementById("playBtn");
 
   if (solved){
-    resEl.innerHTML = isToday ? `✓ Solved in <b>${rec.best}</b> moves`
-                              : `✓ Best <b>${rec.best}</b> moves`;
+    const asu = rec.bestAssists ? ` · ${rec.bestAssists} assist${rec.bestAssists > 1 ? "s" : ""}` : "";
+    resEl.innerHTML = isToday ? `✓ Solved in <b>${rec.best}</b> moves${asu}`
+                              : `✓ Best <b>${rec.best}</b> moves${asu}`;
     if (isToday) startCountdown(cdEl); else { stopCountdown(cdEl); cdEl.textContent = ""; }
     // Copy result belongs to the just-completed win card, not the landing —
     // here a solved puzzle offers a replay. (Copy stays reachable via the
@@ -2667,6 +2741,27 @@ function runTests(){
   // path to the push-from cell is blocked → null (player must not move)
   ok("pushPlan: unreachable stand cell returns null",
      pushPlan(pw, 1, 2, "left") === null);
+
+  // ---- Assist: scoring, best ranking, wall removal ----
+  // assisted stars: clean = raw; each assist drops one; floor at ½; 3★/👑 forfeited
+  ok("assistedStars: clean solve = raw 3★",  assistedStars(10, 10, 0) === 3);
+  ok("assistedStars: 1 assist drops a star (3→2)", assistedStars(10, 10, 1) === 2);
+  ok("assistedStars: 2 assists (3→1)", assistedStars(10, 10, 2) === 1);
+  ok("assistedStars: 3+ assists floor at ½", assistedStars(10, 10, 3) === 0.5 && assistedStars(10, 10, 9) === 0.5);
+  ok("assistedStars: never 3★ once assisted", assistedStars(10, 10, 1) < 3);
+  ok("assistedPerfect: optimal but assisted is NOT perfect", isOptimal(10,10) && !assistedPerfect(10, 10, 1) && assistedPerfect(10, 10, 0));
+
+  // best ranking: fewer assists always wins, then fewer moves
+  ok("scoreBeats: clean 21 beats assisted 18 (fewer assists wins)", scoreBeats(0, 21, 1, 18));
+  ok("scoreBeats: assisted 18 does NOT beat clean 21", !scoreBeats(1, 18, 0, 21));
+  ok("scoreBeats: same assists → fewer moves wins", scoreBeats(1, 18, 1, 20) && !scoreBeats(1, 20, 1, 18));
+
+  // isWall treats an assist-removed cell as floor; interior-only bound reflected in state
+  const wr = parsePuzzle({ id:"wr", terrain:["#####","#.#.#","#####"], slots:[{pos:[1,1],letter:"A"}], crates:[{pos:[1,1],letter:"A"}], player:[1,3], anagram:"A", answer:"A" });
+  ok("isWall: interior wall present before removal", isWall(wr, 1, 2) === true);
+  wr.removed.push([1,2]);
+  ok("isWall: removed cell reads as floor", isWall(wr, 1, 2) === false);
+  ok("cloneState carries removed forward", cloneState(wr).removed.length === 1 && isWall(cloneState(wr), 1, 2) === false);
 
   // report
   const passed = results.filter(r => r.pass).length;
