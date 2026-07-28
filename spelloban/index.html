@@ -493,6 +493,15 @@
   .popbtn{width:100%;font-family:inherit;font-weight:900;text-transform:uppercase;letter-spacing:.04em;
     cursor:pointer;border:3px solid var(--pop-ink);border-radius:14px;color:var(--pop-ink);background:#fff;margin:0;}
   .popbtn.share{background:var(--pop-yellow);padding:15px;font-size:16px;}
+  #copyBtn{display:inline-flex;align-items:center;justify-content:center;gap:9px;}
+  #copyBtn .shareicon{width:19px;height:19px;flex:0 0 auto;}
+  /* real inline icons (Lucide) on close / play / month-nav buttons */
+  .closeX .xicon, .winx .xicon{width:16px;height:16px;}
+  #playBtn, #playAgainBtn{display:inline-flex;align-items:center;justify-content:center;gap:9px;}
+  .btnicon{width:18px;height:18px;flex:0 0 auto;}
+  .playtri{width:16px;height:16px;}
+  .monthnav .stepper{display:inline-flex;align-items:center;justify-content:center;}
+  .monthnav .chev{width:18px;height:18px;}
   .popbtn.playagain{background:#fff;padding:13px;font-size:14px;}
   .popbtn.menu{border:0;background:transparent;color:#6c6a5c;font-size:13px;padding:8px;}
 
@@ -530,14 +539,25 @@
   .wincontent{flex:0 0 auto;display:flex;flex-direction:column;gap:16px;padding:20px;}
   .winstreak{padding:14px 14px 15px;text-align:center;background:#fff;}
   .winstreakhead{font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:.03em;color:var(--pop-ink);}
-  .winweek{display:flex;gap:7px;justify-content:center;margin:12px 0 9px;}
-  .wtile{width:27px;height:27px;border-radius:7px;border:2.5px solid var(--pop-ink);
-    display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;line-height:1;}
-  .wtile.on{background:var(--pop-pink);color:#fff;}
+  /* two-row weekday week: played days ride the green TOP row, the rest sit in the
+     BOTTOM row. Each column is 2 slots tall; the tile occupies one and slides
+     (Sokoban-style push) between rows when a day is solved. */
+  .week2{display:flex;gap:7px;justify-content:center;margin:12px 0 4px;}
+  .wcol{position:relative;width:27px;height:61px;flex:0 0 auto;}   /* 2×27 + 7 gap */
+  .wcol::before, .wcol::after{content:"";position:absolute;left:0;width:27px;height:27px;border-radius:7px;
+    border:2px dashed rgba(19,19,19,.13);box-sizing:border-box;}
+  .wcol::before{top:0;}                 /* top (played) slot outline */
+  .wcol::after{top:34px;}               /* bottom (unplayed) slot outline */
+  .wtile{position:absolute;left:0;width:27px;height:27px;border-radius:7px;border:2.5px solid var(--pop-ink);
+    display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;line-height:1;box-sizing:border-box;
+    transition:top .4s cubic-bezier(.2,.85,.3,1), background-color .4s ease, color .35s ease;}
+  .wtile.up{top:0;}
+  .wtile.down{top:34px;}
+  .wtile.green{background:var(--pop-green);color:#fff;}
   .wtile.today{background:var(--pop-gold);color:var(--pop-ink);}
-  .wtile.off{background:#f2ead7;color:#b8b09a;}
-  /* future days: not available yet — faded, dashed, unfilled */
+  .wtile.miss{background:#f2ead7;color:#b8b09a;}
   .wtile.future{background:transparent;border-style:dashed;border-color:rgba(19,19,19,.22);color:rgba(19,19,19,.24);}
+  @media (prefers-reduced-motion: reduce){ .wtile{transition:none;} }
   .winnext{font-size:12px;font-weight:700;color:#6c6a5c;margin-top:2px;}
   .winnext b{color:var(--pop-ink);font-variant-numeric:tabular-nums;}
 
@@ -765,7 +785,7 @@
     <div class="wincontent landbody">
       <div class="landstreak" id="landStreak" role="img" aria-label=""></div>
       <div class="countdown" id="landCountdown"></div>
-      <div class="htwrap"><span class="htsh"></span><button class="popbtn share" id="playBtn">▶ Play</button></div>
+      <div class="htwrap"><span class="htsh"></span><button class="popbtn share" id="playBtn"><svg class="btnicon playtri" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><path d="M7 4v16l13-8z"/></svg><span class="lbl">Play</span></button></div>
     </div>
   </div>
 </div>
@@ -774,7 +794,7 @@
 <div class="overlay winpop" id="winOverlay">
   <div class="winscreen">
     <div class="winhero">
-      <button class="winx" id="winCloseBtn" aria-label="Close and view your solved board">✕</button>
+      <button class="winx" id="winCloseBtn" aria-label="Close and view your solved board"><svg class="xicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       <div class="winid" id="winId">Spelloban</div>
       <div class="stars" id="winStars" aria-hidden="true"></div>
       <div class="winmoves"><span id="winMoves">0</span></div>
@@ -783,11 +803,11 @@
       <div id="winRecord"></div>
     </div>
     <div class="wincontent">
-      <div class="htwrap"><span class="htsh"></span><button class="popbtn share" id="copyBtn">⇱  Share</button></div>
+      <div class="htwrap"><span class="htsh"></span><button class="popbtn share" id="copyBtn"><svg class="shareicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg><span class="lbl">Share</span></button></div>
       <div class="htwrap"><span class="htsh"></span>
         <div class="winstreak" id="winStreak"></div>
       </div>
-      <div class="htwrap"><span class="htsh"></span><button class="popbtn playagain" id="playAgainBtn">↻  Play again</button></div>
+      <div class="htwrap"><span class="htsh"></span><button class="popbtn playagain" id="playAgainBtn"><svg class="btnicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg><span class="lbl">Play again</span></button></div>
       <button class="popbtn menu" id="backHomeBtn">Menu</button>
     </div>
   </div>
@@ -806,7 +826,7 @@
 <!-- How-to-play overlay (directions; auto-shown once on first visit) -->
 <div class="overlay" id="helpOverlay">
   <div class="card">
-    <button class="closeX" id="helpCloseBtn" aria-label="Close">✕</button>
+    <button class="closeX" id="helpCloseBtn" aria-label="Close"><svg class="xicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
     <h2>How to play</h2>
     <ul class="howto">
       <li><span class="hnum">1</span><span><b>Tap</b> a cell to walk there (shortest path).</span></li>
@@ -825,7 +845,7 @@
 <!-- Stats overlay -->
 <div class="overlay" id="statsOverlay">
   <div class="card">
-    <button class="closeX" id="statsCloseBtn" aria-label="Close">✕</button>
+    <button class="closeX" id="statsCloseBtn" aria-label="Close"><svg class="xicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
     <h2>Your stats</h2>
     <div class="statgrid">
       <div><b id="stPlayed">0</b><span>Solved</span></div>
@@ -840,12 +860,12 @@
 <!-- Archive calendar — browse past dailies; tap a day to open its landing -->
 <div class="overlay" id="archiveOverlay">
   <div class="card archive">
-    <button class="closeX" id="archiveCloseBtn" aria-label="Close">✕</button>
+    <button class="closeX" id="archiveCloseBtn" aria-label="Close"><svg class="xicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
     <h2>Archive</h2>
     <div class="monthnav">
-      <button class="stepper" id="monthPrev" aria-label="Previous month">‹</button>
+      <button class="stepper" id="monthPrev" aria-label="Previous month"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg></button>
       <span class="monthlabel" id="monthLabel"></span>
-      <button class="stepper" id="monthNext" aria-label="Next month">›</button>
+      <button class="stepper" id="monthNext" aria-label="Next month"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg></button>
     </div>
     <div class="calgrid" id="calGrid"></div>
     <div class="callegend">
@@ -1615,7 +1635,11 @@ function addDays(dateStr, delta){
 // not just a count. Built from stats ONLY (never viewedDate) so it reads as YOUR
 // ongoing daily streak, identical on today and archive views. Used by both the
 // landing streak module and the win card.
-function weekTilesHTML(s){
+// Two-row weekday week: PLAYED days ride the top row (green), everything else sits
+// in the bottom row (today = gold "up next", missed = cream, future = dashed). Each
+// weekday is a column with two slots; the tile occupies one. With animateToday, the
+// just-solved day renders in its pre-play (bottom) position so it can be pushed up.
+function weekTilesHTML(s, animateToday){
   const today = getToday();
   const hist = new Set(s.history || []);
   const dow = (new Date(today + "T00:00:00").getDay() + 6) % 7;   // 0 = Monday
@@ -1624,16 +1648,28 @@ function weekTilesHTML(s){
   let html = "", solved = 0;
   for (let i = 0; i < 7; i++){
     const d = addDays(monday, i);
-    const earned = hist.has(d);
+    const isToday = d === today, earned = hist.has(d);
     if (earned) solved++;
-    const cls = d === today ? "today" : (earned ? "on" : (d > today ? "future" : "off"));
-    html += `<div class="wtile ${cls}">${L[i]}</div>`;
+    let cls, pos, anim = "";
+    if (isToday && animateToday){ cls = "today"; pos = "down"; anim = ' data-play="1"'; }  // start pre-play → push up
+    else if (earned)          { cls = "green"; pos = "up"; }
+    else if (isToday)         { cls = "today"; pos = "down"; }
+    else if (d > today)       { cls = "future"; pos = "down"; }
+    else                      { cls = "miss"; pos = "down"; }
+    html += `<div class="wcol"><div class="wtile ${cls} ${pos}"${anim}>${L[i]}</div></div>`;
   }
-  return { html, solved };
+  return { html: `<div class="week2">${html}</div>`, solved };
 }
-// Landing streak module: the same white streak card as the win (🔥 count + weekday
-// week), tap → Stats. Zero-streak shows a start prompt, never "🔥 0". Decorative;
-// the container's aria-label is the readout.
+// Push the just-played day up into the green top row (fires after the DOM paints).
+function playStreakAnim(container){
+  const t = container && container.querySelector('.wtile[data-play]');
+  if (!t) return;
+  // let the pre-play state paint, then flip to green/top → the CSS transition pushes
+  // it up. setTimeout (not rAF) so it still fires if the tab is briefly backgrounded.
+  setTimeout(() => { t.classList.remove("today", "down"); t.classList.add("green", "up"); }, 60);
+}
+// Landing streak module: the two-row week + 🔥 count, tap → Stats. Zero-streak shows
+// a start prompt, never "🔥 0". Decorative; the container's aria-label is the readout.
 function renderStreak(s){
   const el = document.getElementById("landStreak");
   if (!el) return;
@@ -1648,19 +1684,21 @@ function renderStreak(s){
                      : "No streak yet. Solve today to start one.";
   }
   el.setAttribute("aria-label", label);
-  el.innerHTML = `<div class="winstreakhead">${head}</div><div class="winweek">${html}</div>`;
+  el.innerHTML = `<div class="winstreakhead">${head}</div>${html}`;
 }
 
-// Win-card streak week: same weekday tiles, plus the folded #winNext countdown target.
-function renderWinStreak(s){
+// Win-card streak week: same two-row week; when `animate`, the just-solved day is
+// pushed up into the green row. Plus the folded #winNext countdown target.
+function renderWinStreak(s, animate){
   const el = document.getElementById("winStreak");
   if (!el) return;
   const head = s.curStreak >= 1
     ? `🔥 ${s.curStreak}-day streak`
     : (s.played ? "Start a new streak" : "Start your streak");
   el.innerHTML = `<div class="winstreakhead">${head}</div>`
-    + `<div class="winweek">${weekTilesHTML(s).html}</div>`
+    + weekTilesHTML(s, animate).html
     + `<div class="winnext" id="winNext"></div>`;
+  if (animate) playStreakAnim(el);
 }
 
 // don't touch persisted records on the unit-test page
@@ -1923,7 +1961,8 @@ function showWinModal(){
   const isDaily = !!archiveDaily(getToday()) && game.state.id === dailyPuzzle(getToday()).id;
   // DATE_OVERRIDE (?date=) makes getToday() lie, which would let a streak be farmed
   // by stepping the override forward and solving — so it never advances the streak.
-  const stats = (IS_TEST || !isDaily || game.debugReplay || DATE_OVERRIDE) ? loadStats() : recordSolve();
+  const advanced = !(IS_TEST || !isDaily || game.debugReplay || DATE_OVERRIDE);   // today's daily just recorded → animate the push-up
+  const stats = advanced ? recordSolve() : loadStats();
 
   // per-puzzle personal best + attempt count for THIS puzzle (skipped on a debug replay)
   const { rec, first, improved } = game.debugReplay
@@ -1949,7 +1988,7 @@ function showWinModal(){
   }
 
   // streak week (Mon–Sun) + folded countdown, in the streak card
-  renderWinStreak(stats);
+  renderWinStreak(stats, advanced);
   stopCountdown();                              // clear any orphaned timers; #winNext is freshly rebuilt above
   const nextEl = document.getElementById("winNext");
   if (isDaily && nextEl) startCountdown(nextEl);
@@ -2178,8 +2217,9 @@ copyBtn.addEventListener("click", async () => {
   if (done){
     toast("Copied — share it, or tap ✕ to view your board");
     // momentary in-button confirmation so the action clearly "took"
-    copyBtn.textContent = "Copied ✓";
-    setTimeout(() => { copyBtn.textContent = "⇱  Share"; }, 1400);
+    const lbl = copyBtn.querySelector(".lbl");
+    lbl.textContent = "Copied ✓";
+    setTimeout(() => { lbl.textContent = "Share"; }, 1400);   // keep the icon; only swap the label
   } else {
     toast("Copy failed");
   }
@@ -2252,6 +2292,11 @@ function renderLandStars(el, solved, best, optimal, assists){
   renderStarRow(el, stars, false);
 }
 
+// Play button icon+label swap (play triangle vs replay arrow), keeping the icon
+// when the label changes across Play / Resume / Play again.
+const ICON_PLAY   = '<svg class="btnicon playtri" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><path d="M7 4v16l13-8z"/></svg>';
+const ICON_REPLAY = '<svg class="btnicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>';
+function setPlayBtn(label, replay){ document.getElementById("playBtn").innerHTML = (replay ? ICON_REPLAY : ICON_PLAY) + `<span class="lbl">${label}</span>`; }
 function renderLanding(){
   const today = getToday();
   const isToday = viewedDate === today;
@@ -2280,7 +2325,7 @@ function renderLanding(){
     // Copy result belongs to the just-completed win card, not the landing —
     // here a solved puzzle offers a replay. (Copy stays reachable via the
     // in-play "See result" pill → win card.)
-    playBtn.textContent = "▶ Play again";
+    setPlayBtn("Play again", true);
     playBtn.onclick = () => startPuzzle(daily);
   } else {
     // In-progress is conveyed solely by the "Resume" button — no result line, no
@@ -2288,7 +2333,7 @@ function renderLanding(){
     const inProgress = !!loadProgress(daily.id);
     resEl.innerHTML = "";
     stopCountdown(cdEl); cdEl.textContent = "";
-    playBtn.textContent = inProgress ? "▶ Resume" : "▶ Play";
+    setPlayBtn(inProgress ? "Resume" : "Play", false);
     playBtn.onclick = () => startPuzzle(daily);
   }
 
