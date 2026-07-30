@@ -33,7 +33,7 @@
     --cols:7; --rows:12;
     --boardH: calc(100dvh - var(--barH) - var(--footH) - 44px
                    - env(safe-area-inset-top) - env(safe-area-inset-bottom) - var(--vpad) * 2);
-    --bw: min(92vw, calc(var(--maxw) - 16px), calc(var(--boardH) * var(--cols) / var(--rows)));
+    --bw: min(calc(100vw - 20px), var(--maxw), calc(var(--boardH) * var(--cols) / var(--rows)));
     --cell: calc(var(--bw) / var(--cols));
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
@@ -56,19 +56,24 @@
      chrome present — no scroll, no squash. The stage flex-grows and centers the
      board tray, absorbing any leftover slack as symmetric bezel (replaces the
      old margin:auto void-centering). */
-  .topbar{ width:100%; max-width:var(--maxw); flex:0 0 auto; }
+  /* header, board, and footer all share the board's width (--bw) so their left/right
+     edges line up exactly — the buttons align with the board margins. */
+  .topbar{ width:100%; max-width:var(--bw); flex:0 0 auto; }
   .stage{
-    width:100%; max-width:var(--maxw);
+    width:100%; max-width:var(--bw);
     flex:1 1 auto; min-height:0;
     display:flex; align-items:center; justify-content:center;
   }
-  .controls{ width:100%; max-width:var(--maxw); flex:0 0 auto; margin-top:12px; }
+  .controls{ width:100%; max-width:var(--bw); flex:0 0 auto; margin-top:12px; }
   /* lock the whole play surface (incl. the stage bezel around the board) from
      scrolling — a swipe that starts just off the board must not scroll the page */
   .topbar, .stage, .controls{ touch-action:none; }
 
   /* top bar */
-  .topbar{ display:flex; align-items:center; justify-content:space-between; padding:6px 4px 0; gap:8px; }
+  /* mirror the controls' footprint (height + 12px gap) so the board centers on
+     screen instead of riding high between mismatched top/bottom chrome. */
+  .topbar{ display:flex; align-items:center; justify-content:space-between;
+    min-height:var(--footH); margin-bottom:12px; padding:0 4px; gap:8px; }
   .brand{ display:flex; align-items:center; gap:10px; min-width:0; }
   .logomark{
     flex:0 0 auto; width:30px; height:30px; border-radius:7px;
@@ -220,7 +225,7 @@
   /* Reset (left) and Undo (right): matching labeled icon buttons */
   button.ctl{ border-radius:12px; }
   .ctl svg{ width:17px; height:17px; flex:0 0 auto; }
-  .ctl.undo, .ctl.reset, .ctl.assist{ border:1px solid #2c333b; padding:12px 16px;
+  .ctl.undo, .ctl.reset{ border:1px solid #2c333b; padding:12px 16px;
     font-size:14px; display:inline-flex; align-items:center; gap:7px; flex:0 0 auto; }
   .ctl.undo{ background:var(--floor); }               /* filled */
   .ctl.reset{ background:transparent; color:var(--muted); }   /* outline / secondary */
@@ -510,8 +515,8 @@
     align-items:center;justify-content:center;}
   .winscreen{width:100%;max-width:400px;margin:auto;border:3px solid var(--pop-ink);border-radius:20px;
     overflow:hidden;box-shadow:7px 9px 0 var(--pop-ink);display:flex;flex-direction:column;background:var(--pop-paper);}
-  #winOverlay.show .winscreen{animation:winin .32s cubic-bezier(.2,.7,.3,1) both;}
-  @keyframes winin{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+  #winOverlay.show .winscreen{animation:winin 300ms var(--ease-pop) both;}
+  @keyframes winin{from{opacity:0;transform:translateY(10px) scale(.98);}to{opacity:1;transform:none;}}
   .winhero{position:relative;flex:0 0 auto;text-align:center;color:#fff;padding:18px 22px 26px;
     background:var(--pop-cobalt);
     background-image:radial-gradient(rgba(255,255,255,.30) 0.9px, transparent 1.1px);
@@ -543,6 +548,8 @@
   .wtile{width:27px;height:27px;border-radius:7px;border:2.5px solid var(--pop-ink);
     display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;line-height:1;}
   .wtile.on{background:var(--pop-pink);color:#fff;}
+  /* the day you just completed pops into the earned pink (win card) */
+  .wtile.justdone{animation:tilePop .34s var(--ease-pop) both;}
   .wtile.today{background:var(--pop-gold);color:var(--pop-ink);}
   .wtile.off{background:#f2ead7;color:#b8b09a;}
   /* future days: not available yet — faded, dashed, unfilled */
@@ -553,8 +560,12 @@
   /* ---- daily landing (Halftone Pop) — reuses the win's .winhero/.wincontent/.winstreak
      classes; a centered, bounded panel: cobalt header (date picker + rating) + cream body
      (streak + Play), so the two screens share one visual language and most CSS. ---- */
-  #startOverlay.landpop{padding:20px;background:var(--pop-paper);backdrop-filter:none;
-    align-items:center;justify-content:center;}
+  /* Column flex + margin:auto on the card centers it when it fits and top-anchors +
+     scrolls it when it doesn't — so it never clips. Safe-area padding keeps it clear
+     of the notch / home indicator / browser toolbars. */
+  #startOverlay.landpop{background:var(--pop-paper);backdrop-filter:none;
+    flex-direction:column;align-items:center;justify-content:flex-start;
+    padding:calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));}
   .landscreen{width:100%;max-width:400px;margin:auto;border:3px solid var(--pop-ink);
     border-radius:20px;overflow:hidden;box-shadow:7px 9px 0 var(--pop-ink);}
   .landbody{flex:0 0 auto;}                     /* bounded panel: don't stretch */
@@ -564,10 +575,10 @@
   /* puzzle box: date → rating → result, framed in a white pop card inside the hero;
      the arrows flank the whole stack, vertically centered (align-items:center). */
   .puzzlebox{display:flex;align-items:center;gap:2px;margin:18px 0 2px;background:#fff;
-    border:3px solid var(--pop-ink);border-radius:14px;box-shadow:4px 5px 0 var(--pop-ink);padding:12px 8px 14px;}
+    border:3px solid var(--pop-ink);border-radius:14px;box-shadow:4px 5px 0 var(--pop-ink);padding:12px 4px 14px;}
   .puzzlebox .pbody{flex:1 1 auto;min-width:0;text-align:center;}
   .puzzlebox .stepper{flex:0 0 auto;background:transparent;border:0;box-shadow:none;border-radius:0;
-    width:32px;height:32px;padding:0;margin:0;display:flex;align-items:center;justify-content:center;color:var(--pop-ink);}
+    width:28px;height:32px;padding:0;margin:0;display:flex;align-items:center;justify-content:center;color:var(--pop-ink);}
   .puzzlebox .stepper:disabled{opacity:.28;}
   .puzzlebox .stepper:active{transform:translateY(1px);}
   .puzzlebox .chev{width:20px;height:20px;}
@@ -579,7 +590,7 @@
   .puzzlebox .stars .s{color:#dccfb2;text-shadow:none;}
   .puzzlebox .stars .s.on{color:var(--pop-gold);-webkit-text-stroke:2px var(--pop-ink);paint-order:stroke fill;text-shadow:none;}
   /* reserve the result line's height so flipping dates never resizes the box */
-  .puzzlebox .result{color:var(--pop-ink);font-weight:800;margin:10px 0 0;min-height:1.25em;}
+  .puzzlebox .result{color:var(--pop-ink);font-weight:800;font-size:15px;white-space:nowrap;margin:10px 0 0;min-height:1.25em;}
   /* streak: no box — plain 🔥 head + weekday tiles on the cream body */
   .landstreak{text-align:center;cursor:pointer;}
   /* next-puzzle countdown: the prominent "come back tomorrow" beat on the landing.
@@ -603,9 +614,19 @@
     box-shadow:2px 2px 0 var(--pop-ink);}
   .meter .pip{background:#e2d8bf;border:2px solid var(--pop-ink);border-radius:3px;box-shadow:none;width:8px;height:14px;}
   .meter .pip.on{background:var(--pop-pink);box-shadow:none;}
-  .iconbtn{background:#fff;border:2.5px solid var(--pop-ink);color:var(--pop-ink);border-radius:10px;
-    box-shadow:2px 2px 0 var(--pop-ink);}
-  .iconbtn:active{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--pop-ink);}
+  /* top-bar actions grouped into ONE outlined toolbar — a single border + shadow for
+     the whole cluster (not per button), so it stops eating real estate. Icons are
+     segments split by thin dividers. */
+  .topActions{background:#fff;border:2.5px solid var(--pop-ink);border-radius:11px;
+    box-shadow:2px 2px 0 var(--pop-ink);gap:0;overflow:hidden;}
+  .iconbtn{background:transparent;border:0;box-shadow:none;border-radius:0;width:38px;height:34px;color:var(--pop-ink);}
+  .iconbtn + .iconbtn{border-left:2px solid var(--pop-ink);}
+  .iconbtn svg{width:17px;height:17px;}
+  .iconbtn:active{transform:none;background:rgba(19,19,19,.07);}
+  /* picking a wall: the button itself pulses orange → red (armed), not the flat cobalt */
+  #assistBtn.active{background:#ff5a1f;color:#fff;animation:assistpulse 1s ease-in-out infinite;}
+  @keyframes assistpulse{0%,100%{background:#ff8a3a;}50%{background:#ff2626;}}
+  @media (prefers-reduced-motion: reduce){ #assistBtn.active{animation:none;background:#ff5a1f;} }
   /* board: ink-framed cream grid, NO drop-shadow; an inner shadow sinks the play field into an inset well */
   .board-tray{position:relative;background:transparent;border:0;box-shadow:none;padding:0;}
   .board{position:relative;background:var(--pop-ink);border:3px solid var(--pop-ink);border-radius:13px;box-shadow:none;}
@@ -649,15 +670,64 @@
   /* controls */
   .moves .lbl{color:#7a7768;font-weight:900;}
   .moves b{color:var(--pop-ink);}
-  .ctl.undo, .ctl.reset, .ctl.assist{background:#fff;border:2.5px solid var(--pop-ink);color:var(--pop-ink);
+  .ctl.undo, .ctl.reset{background:#fff;border:2.5px solid var(--pop-ink);color:var(--pop-ink);
     box-shadow:2px 2px 0 var(--pop-ink);border-radius:12px;}
-  .ctl.undo:active, .ctl.reset:active, .ctl.assist:active{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--pop-ink);}
-  /* assist active (picking a wall): cobalt fill; the board highlights removable walls */
-  .ctl.assist.active{background:var(--pop-cobalt);color:#fff;}
-  body.assisting .board{cursor:crosshair;}
-  body.assisting .cell.wall .wface{outline:2.5px solid var(--pop-cobalt);outline-offset:-3px;}
-  /* a wall lifted by Assist → faint dashed ghost on the now-floor cell */
-  .cell.removed::after{content:"";position:absolute;inset:18%;border:2px dashed rgba(46,75,232,.35);border-radius:5px;}
+  .ctl.undo:active, .ctl.reset:active{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--pop-ink);}
+  /* ---- Assist "Armed Rail": the controls bar BECOMES the cost banner while
+     blasting, then a green Undo host after. It fills the same 60px slot (the
+     Reset/MOVES/Undo children hide), so the board above never reflows. ---- */
+  body.assisting .controls > .ctl, body.assisting .controls > .moves,
+  body.assist-undo .controls > .ctl, body.assist-undo .controls > .moves{display:none;}
+  .armrail{display:none;}
+  body.assisting .armrail, body.assist-undo .armrail{
+    display:flex;align-items:center;gap:10px;flex:1;height:56px;position:relative;overflow:hidden;
+    padding:0 8px 0 14px;border:3px solid var(--pop-ink);border-radius:12px;
+    box-shadow:3px 4px 0 var(--pop-ink);color:var(--pop-ink);}
+  .armrail::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;border-radius:9px;
+    background:repeating-linear-gradient(45deg,var(--pop-ink) 0 1px,transparent 1px 4px);mix-blend-mode:multiply;opacity:.12;}
+  .armrail-text{position:relative;z-index:1;flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:3px;}
+  .armrail-l1{font-size:13px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;line-height:1;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .armrail-l2{font-size:12px;font-weight:700;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .armrail-btn{position:relative;z-index:1;flex:0 0 auto;height:40px;min-width:40px;padding:0 12px;
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;background:#fff;
+    border:2.5px solid var(--pop-ink);border-radius:10px;box-shadow:2px 2px 0 var(--pop-ink);color:var(--pop-ink);
+    font-weight:900;font-size:13px;text-transform:uppercase;letter-spacing:.04em;}
+  .armrail-btn svg{width:17px;height:17px;}
+  .armrail-btn:active{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--pop-ink);}
+  /* armed = orange, pulsing in phase with the bomb + wall outlines + board frame */
+  body.assisting .armrail{background:#ff5a1f;animation:armrailpulse 1s ease-in-out infinite, railin 240ms var(--ease-snap);}
+  @keyframes armrailpulse{0%,100%{background:#ff8a3a;}50%{background:#ff2626;}}
+  body.assisting .armrail.shake{animation:armrailpulse 1s ease-in-out infinite, railshake .35s ease;}
+  @keyframes railshake{0%,100%{transform:translateX(0);}20%{transform:translateX(-5px);}40%{transform:translateX(5px);}60%{transform:translateX(-3px);}80%{transform:translateX(3px);}}
+  /* success = seated-crate green, static (a settled, good outcome) */
+  body.assist-undo .armrail{background:var(--pop-green);}
+  /* board frame arms (a 3px orange ring) in phase with the rail */
+  body.assisting .board{animation:framearm 1s ease-in-out infinite;}
+  @keyframes framearm{0%,100%{box-shadow:0 0 0 3px #ff8a3a;}50%{box-shadow:0 0 0 3px #ff2626;}}
+  /* open-room puzzles: bomb greyed but still tappable (explains on tap) */
+  #assistBtn.disabled{opacity:.4;}
+  @media (prefers-reduced-motion: reduce){
+    body.assisting .armrail, body.assisting .armrail.shake{animation:none;background:#ff5a1f;}
+    body.assisting .board{animation:none;box-shadow:0 0 0 3px #ff5a1f;}
+  }
+  /* re-skin the (legacy dark) toast to Halftone Pop — now used only for the
+     open-room explain + misc; the blast result lives in the rail. */
+  .toast{background:#fff;color:var(--pop-ink);border:3px solid var(--pop-ink);border-radius:12px;
+    box-shadow:3px 4px 0 var(--pop-ink);font-weight:800;}
+  /* assist mode: only island (blastable) walls light up and take the crosshair;
+     the sealing outer walls stay plain and refuse the tap. */
+  body.assisting .board{cursor:default;}
+  body.assisting .cell.wall{cursor:not-allowed;}
+  body.assisting .cell.wall.removable{cursor:crosshair;}
+  body.assisting .cell.wall.removable .wface{outline:2.5px solid #ff5a1f;outline-offset:-3px;
+    animation:wallarm 1s ease-in-out infinite;}
+  @keyframes wallarm{0%,100%{outline-color:#ff8a3a;}50%{outline-color:#ff2626;}}
+  @media (prefers-reduced-motion: reduce){ body.assisting .cell.wall.removable .wface{animation:none;} }
+  /* a wall blasted by Assist → a faint scorch/rubble hatch (NOT the dashed box a
+     target slot uses, so it can't be mistaken for a place-a-crate marker) */
+  .cell.removed::after{content:"";position:absolute;inset:12%;border-radius:6px;pointer-events:none;
+    background:repeating-linear-gradient(45deg,rgba(19,19,19,.20) 0 2px,transparent 2px 5px);mix-blend-mode:multiply;}
   /* half star (assist ½ floor): left half gold, right half empty, ink stroke */
   #winOverlay #winStars .s.half, .puzzlebox .stars .s.half{
     -webkit-text-stroke:2px var(--pop-ink);paint-order:stroke fill;text-shadow:none;
@@ -690,6 +760,8 @@
   .howto li{color:var(--pop-ink);}
   .howto li b{color:var(--pop-ink);}
   .howto .hnum{background:var(--pop-pink);color:#fff;border:2.5px solid var(--pop-ink);box-shadow:none;}
+  .howto .hnum.bombchip{background:var(--pop-cobalt);}   /* assist tip — cobalt like the active bomb button */
+  .howto .hnum svg{width:16px;height:16px;}
   .howtonote{color:#5b5848;} .howtonote b{color:var(--pop-ink);}
   .settingrow{border:2.5px solid var(--pop-ink);background:#f7f1e3;}
   .settingrow .lbl b{color:var(--pop-ink);} .settingrow .lbl small{color:#7a7768;}
@@ -713,6 +785,70 @@
   .callegend i.three{background:var(--pop-green);}
   .callegend i.two{background:var(--pop-gold);}
   .callegend i.none{border:2px solid rgba(19,19,19,.25);}
+
+  /* ============================================================
+     MOTION — "Snappy Print-Stamp". Printed objects that press INTO the page:
+     an asymmetric transition (fast snap-down on :active, springy overshoot on
+     release) gives the pop with no keyframes. Placed last so these :active
+     rules supersede the earlier flat translateY(1px) ones by source order. */
+  :root{
+    --ease-pop:  cubic-bezier(.34,1.56,.64,1);   /* overshoot spring — release + entrances */
+    --ease-snap: cubic-bezier(.2,.7,.3,1);        /* fast decel, no overshoot — press-down */
+    /* transform and box-shadow MUST share one curve+duration in each direction, or
+       the shadow lags the movement and the press reads out of sync. */
+    --press-release: transform 160ms var(--ease-pop), box-shadow 160ms var(--ease-pop);
+    --press-down:    transform 80ms var(--ease-snap), box-shadow 80ms var(--ease-snap);
+  }
+  /* generic <button> fallback first, so specific rules below always win */
+  button{ transition:transform 160ms var(--ease-pop); }
+  button:active{ transform:translateY(1px); transition:transform 80ms var(--ease-snap); }
+  /* base: springy release on every shadowed pressable */
+  .ctl.undo, .ctl.reset, .ctl.seeresult, .armrail-btn,
+  .card .closeX, .winx, .landpop .help, .monthnav .stepper,
+  .overlay .card button.primary, .overlay .card button.ghost{ transition:var(--press-release); }
+  /* Group A — shadow 2px2px -> seats flat onto the page */
+  .ctl.undo:active, .ctl.reset:active, .ctl.seeresult:active, .armrail-btn:active, .monthnav .stepper:active{
+    transform:translate(2px,2px); box-shadow:0 0 0 var(--pop-ink); transition:var(--press-down); }
+  /* Group B — shadow 2.5px2.5px -> seats flat */
+  .card .closeX:active, .landpop .help:active, .winx:active{
+    transform:translate(2px,3px); box-shadow:0 0 0 var(--pop-ink); transition:var(--press-down); }
+  /* Group C — overlay primary/ghost, shadow 4px5px -> seats flat */
+  .overlay .card button.primary:active, .overlay .card button.ghost:active{
+    transform:translate(4px,5px); box-shadow:0 0 0 var(--pop-ink); transition:var(--press-down); }
+  /* halftone-shadowed CTAs (Play / Share / Play again): press deep toward the .htsh hatch */
+  .popbtn.share, .popbtn.playagain{ transition:var(--press-release); }
+  .popbtn.share:active, .popbtn.playagain:active{ transform:translate(5px,6px); transition:var(--press-down); }
+  /* shadowless controls: tactile scale-press (no shadow to sink into) */
+  .iconbtn svg{ transition:transform 160ms var(--ease-pop); }
+  .iconbtn:active{ transform:none; background:rgba(19,19,19,.10); }   /* pill stays put; the glyph presses */
+  .iconbtn:active svg{ transform:scale(.82) translateY(1px); transition:transform 80ms var(--ease-snap); }
+  .puzzlebox .stepper, .puzzlebox .daypick, .daypick, .popbtn.menu{ transition:transform 160ms var(--ease-pop); }
+  .puzzlebox .stepper:active, .puzzlebox .daypick:active, .daypick:active, .popbtn.menu:active{
+    transform:scale(.9); transition:transform 80ms var(--ease-snap); }
+  /* toast: rise from below, overshoot up a hair, settle (skin is already Halftone) */
+  .toast{ transform:translateX(-50%) translateY(16px); transition:opacity 180ms ease, transform 240ms var(--ease-pop); }
+  .toast.show{ transform:translateX(-50%) translateY(0); }
+  /* armed rail: pop in under the orange pulse (transform/opacity vs background → no conflict) */
+  @keyframes railin{ 0%{transform:scale(.94);opacity:.4;} 60%{transform:scale(1.03);} 100%{transform:scale(1);opacity:1;} }
+  /* win star row: ratchet 1-2-3 */
+  #winOverlay #winStars .s.on:nth-child(1){ animation-delay:0ms; }
+  #winOverlay #winStars .s.on:nth-child(2){ animation-delay:120ms; }
+  #winOverlay #winStars .s.on:nth-child(3){ animation-delay:240ms; }
+  /* Share -> Copied ✓ */
+  @keyframes copiedpop{ 0%{transform:scale(1);} 40%{transform:scale(1.06);} 100%{transform:scale(1);} }
+  #copyBtn.copied{ background:var(--pop-green); color:#fff; animation:copiedpop 240ms var(--ease-pop); }
+  @media (prefers-reduced-motion:reduce){
+    /* Keep the tactile button presses — a ~1px keypress is functional feedback,
+       not the vestibular motion Reduce Motion targets. Only neutralize the larger
+       entrance/travel motions below (toast rise, rail/card/star pops). */
+    .toast{ transition:opacity 120ms ease !important; transform:translateX(-50%) !important; }
+    .toast.show{ transform:translateX(-50%) !important; }
+    body.assisting .armrail{ animation:armrailpulse 1s ease-in-out infinite !important; }
+    #winOverlay.show .winscreen{ animation:none !important; }
+    #winOverlay #winStars .s.on{ animation-delay:0ms !important; }
+    #copyBtn.copied{ animation:none !important; }
+    .wtile.justdone{ animation:none !important; }
+  }
 </style>
 </head>
 <body>
@@ -727,14 +863,17 @@
     </div>
   </div>
   <div class="topActions">
-    <button class="iconbtn" id="homeBtn" aria-label="Back to daily menu">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>
+    <button class="iconbtn assist" id="assistBtn" aria-label="Assist — blast a wall">
+      <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M248,32h0a8,8,0,0,0-8,8,52.66,52.66,0,0,1-3.57,17.39C232.38,67.22,225.7,72,216,72c-11.06,0-18.85-9.76-29.49-24.65C176,32.66,164.12,16,144,16c-16.39,0-29,8.89-35.43,25a66.07,66.07,0,0,0-3.9,15H88A16,16,0,0,0,72,72v9.59A88,88,0,0,0,112,248h1.59A88,88,0,0,0,152,81.59V72a16,16,0,0,0-16-16H120.88a46.76,46.76,0,0,1,2.69-9.37C127.62,36.78,134.3,32,144,32c11.06,0,18.85,9.76,29.49,24.65C184,71.34,195.88,88,216,88c16.39,0,29-8.89,35.43-25A68.69,68.69,0,0,0,256,40,8,8,0,0,0,248,32ZM111.89,209.32A8,8,0,0,1,104,216a8.52,8.52,0,0,1-1.33-.11,57.5,57.5,0,0,1-46.57-46.57,8,8,0,1,1,15.78-2.64,41.29,41.29,0,0,0,33.43,33.43A8,8,0,0,1,111.89,209.32Z"/></svg>
+    </button>
+    <button class="iconbtn" id="statsBtn" aria-label="Your stats">
+      <svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="12" width="4" height="7" rx="1"/><rect x="10" y="8" width="4" height="11" rx="1"/><rect x="16" y="5" width="4" height="14" rx="1"/></svg>
     </button>
     <button class="iconbtn" id="helpBtn" aria-label="How to play">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
     </button>
-    <button class="iconbtn" id="statsBtn" aria-label="Your stats">
-      <svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="12" width="4" height="7" rx="1"/><rect x="10" y="8" width="4" height="11" rx="1"/><rect x="16" y="5" width="4" height="14" rx="1"/></svg>
+    <button class="iconbtn" id="homeBtn" aria-label="Back to daily menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>
     </button>
   </div>
 </header>
@@ -748,9 +887,13 @@
 <div class="controls">
   <button class="ctl reset" id="resetBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>Reset</button>
   <div class="moves"><span class="lbl">MOVES</span><b id="moveCount">0</b></div>
-  <button class="ctl assist" id="assistBtn" aria-label="Assist — remove a wall (costs a star)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M8.5 12h7"/></svg>Assist</button>
   <button class="ctl undo" id="undoBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>Undo</button>
   <button class="ctl seeresult" id="seeResultBtn" style="display:none" aria-label="See your result"><span class="cratechk"></span>See result</button>
+  <!-- Assist "Armed Rail": swaps in over the controls while blasting (orange) / after (green undo). Same 60px slot → no board reflow. -->
+  <div class="armrail" id="armRail" aria-live="polite">
+    <div class="armrail-text"><div class="armrail-l1" id="armRailL1"></div><div class="armrail-l2" id="armRailL2"></div></div>
+    <button class="armrail-btn" id="armRailBtn" aria-label="Cancel"></button>
+  </div>
 </div>
 
 <!-- Daily landing — Halftone Pop: cobalt hero + cream content (mirrors the win) -->
@@ -821,6 +964,7 @@
       <li><span class="hnum">1</span><span><b>Tap</b> a cell to walk there (shortest path).</span></li>
       <li><span class="hnum">2</span><span><b>Swipe</b> toward a crate to push it. Arrows / WASD work too.</span></li>
       <li><span class="hnum">3</span><span>Push every crate onto its dashed slot to spell the hidden word.</span></li>
+      <li><span class="hnum bombchip"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M248,32h0a8,8,0,0,0-8,8,52.66,52.66,0,0,1-3.57,17.39C232.38,67.22,225.7,72,216,72c-11.06,0-18.85-9.76-29.49-24.65C176,32.66,164.12,16,144,16c-16.39,0-29,8.89-35.43,25a66.07,66.07,0,0,0-3.9,15H88A16,16,0,0,0,72,72v9.59A88,88,0,0,0,112,248h1.59A88,88,0,0,0,152,81.59V72a16,16,0,0,0-16-16H120.88a46.76,46.76,0,0,1,2.69-9.37C127.62,36.78,134.3,32,144,32c11.06,0,18.85,9.76,29.49,24.65C184,71.34,195.88,88,216,88c16.39,0,29-8.89,35.43-25A68.69,68.69,0,0,0,256,40,8,8,0,0,0,248,32ZM111.89,209.32A8,8,0,0,1,104,216a8.52,8.52,0,0,1-1.33-.11,57.5,57.5,0,0,1-46.57-46.57,8,8,0,1,1,15.78-2.64,41.29,41.29,0,0,0,33.43,33.43A8,8,0,0,1,111.89,209.32Z"/></svg></span><span><b>Assist</b> blasts one inner wall so you can finish a hard puzzle. It costs you a star.</span></li>
     </ul>
     <p class="howtonote">Fewer moves earn more stars. A fresh puzzle daily — <b>gentle on Monday, toughest by the weekend.</b></p>
     <label class="settingrow">
@@ -952,17 +1096,41 @@ const PUZZLES = [
 
 // Parse a puzzle JSON into a game state (pure data, deep-owned).
 function parsePuzzle(p){
-  const terrain = p.terrain.map(row =>
+  let terrain = p.terrain.map(row =>
     row.split("").map(ch => ch === "#" ? "wall" : "floor")
   );
+  let slots  = p.slots.map(s => ({ r:s.pos[0], c:s.pos[1], letter:s.letter }));   // static
+  let crates = p.crates.map(c => ({ r:c.pos[0], c:c.pos[1], letter:c.letter }));  // mobile
+  let player = [p.player[0], p.player[1]];
+
+  // Normalize framing: trim dead wall margin down to a symmetric 1-cell border so
+  // the board frames the level tightly (top/bottom/left/right margins match, tiles
+  // fill the space). Logic-safe — every piece coord shifts by the same offset, and
+  // the trimmed border is all wall, so the outer-wall rule still holds.
+  {
+    const R = terrain.length, C = terrain[0].length;
+    let r0 = R, r1 = -1, c0 = C, c1 = -1;
+    const grow = (r, c) => { if (r<r0)r0=r; if (r>r1)r1=r; if (c<c0)c0=c; if (c>c1)c1=c; };
+    for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) if (terrain[r][c] === "floor") grow(r, c);
+    slots.forEach(s => grow(s.r, s.c)); crates.forEach(k => grow(k.r, k.c)); grow(player[0], player[1]);
+    if (r1 >= r0){                                       // pad one wall ring, clamp to grid
+      r0 = Math.max(0, r0-1); c0 = Math.max(0, c0-1);
+      r1 = Math.min(R-1, r1+1); c1 = Math.min(C-1, c1+1);
+      if (r0 || c0 || r1 < R-1 || c1 < C-1){
+        terrain = terrain.slice(r0, r1+1).map(row => row.slice(c0, c1+1));
+        slots.forEach(s => { s.r -= r0; s.c -= c0; });
+        crates.forEach(k => { k.r -= r0; k.c -= c0; });
+        player = [player[0]-r0, player[1]-c0];
+      }
+    }
+  }
+
   return {
     id: p.id,
     rows: terrain.length,
     cols: terrain[0].length,
     terrain,                                             // static: 'wall' | 'floor'
-    slots: p.slots.map(s => ({ r:s.pos[0], c:s.pos[1], letter:s.letter })),   // static
-    crates: p.crates.map(c => ({ r:c.pos[0], c:c.pos[1], letter:c.letter })), // mobile
-    player: [p.player[0], p.player[1]],
+    slots, crates, player,
     moves: 0,
     removed: [],                                         // walls lifted by Assist this run ([[r,c],…])
     meta: { anagram:p.anagram || "", answer:p.answer || "", optimal: p.optimal || null }
@@ -988,6 +1156,12 @@ function isWall(state, r, c){
   if (r < 0 || c < 0 || r >= state.rows || c >= state.cols) return true;
   if (state.removed){ for (const [rr, cc] of state.removed) if (rr === r && cc === c) return false; }
   return state.terrain[r][c] === "wall";
+}
+// A wall is blastable only if it's an INTERIOR wall — not on the grid's outside
+// border. The outer walls are the edge squares (row 0, the last row, column 0,
+// the last column); they seal the level and are never removable.
+function isRemovableWall(state, r, c){
+  return isWall(state, r, c) && r > 0 && c > 0 && r < state.rows - 1 && c < state.cols - 1;
 }
 function crateIndexAt(state, r, c){
   return state.crates.findIndex(k => k.r === r && k.c === c);
@@ -1107,7 +1281,10 @@ let game = {
   playerEl: null,
   won: false,
   animating: false, // true while a tap-walk is playing out; blocks new input
-  counted: false    // has this run's attempt been counted toward "tries" yet
+  counted: false,   // has this run's attempt been counted toward "tries" yet
+  assistMode: false,        // "pick a wall to blast" is armed
+  lastBlast: null,          // [r,c] of the wall just blasted, while its Undo is offered
+  hasRemovableWalls: false  // any island wall to blast? (else the bomb is inert)
 };
 
 const STEP_MS = 105;                       // per-step cadence of a tap-walk
@@ -1121,6 +1298,8 @@ function loadPuzzle(puzzleJson){
   game.won = false;
   game.animating = false;
   game.counted = false;
+  game.assistMode = false; game.lastBlast = null;
+  document.body.classList.remove("assisting", "assist-undo");   // no stale rail across puzzles
   applyDayMeta(puzzleJson);        // top-bar weekday + difficulty from meta.day
   clearWinUI();
   buildBoard();
@@ -1137,6 +1316,7 @@ function buildBoard(){
   ghostEl = null;                  // innerHTML wipe detaches it; forget the ref
 
   // terrain + slot cells (static grid)
+  let removableCount = 0;
   for (let r = 0; r < s.rows; r++){
     for (let c = 0; c < s.cols; c++){
       const cell = document.createElement("div");
@@ -1151,10 +1331,13 @@ function buildBoard(){
       if (wall){
         const face = document.createElement("div"); face.className = "wface"; cell.appendChild(face);
         if (r < s.rows - 1 && c < s.cols - 1) cell.classList.add("wsh");
+        if (isRemovableWall(s, r, c)){ cell.classList.add("removable"); removableCount++; }   // interior wall Assist can blast
       }
       boardEl.appendChild(cell);
     }
   }
+  game.hasRemovableWalls = removableCount > 0;
+  updateAssistBtn();   // grey the bomb on open-room puzzles (nothing to blast)
 
   // crate movers
   game.crateEls = s.crates.map((cr) => {
@@ -1219,6 +1402,7 @@ function commitMove(dir){
 
   game.history.push(prev);
   game.state = next;
+  if (game.lastBlast) clearAssistUndo();   // moving on expires the blast-undo (and restores MOVES)
   render();
 
   if (pushedIdx !== -1){
@@ -1236,7 +1420,7 @@ function commitMove(dir){
 
 // Public directional input (swipe / keyboard). Blocked while a walk animates.
 function doMove(dir){
-  if (game.won || game.animating) return;
+  if (game.won || game.animating || game.assistMode) return;   // armed is a deliberate state — disarm first
   commitMove(dir);
 }
 
@@ -1346,6 +1530,7 @@ function reset(){
   game.won = false;
   game.counted = false;   // a fresh run → its attempt hasn't been counted yet
   setAssistMode(false);
+  clearAssistUndo();
   clearProgress(game.state.id);   // starting over → drop the saved snapshot
   clearWinUI();
   buildBoard();            // rebuild the grid so any lifted walls are restored
@@ -1355,27 +1540,74 @@ function reset(){
 // ---- Assist: remove a wall (spatial hint; costs stars, keeps the streak) ----
 // Enter "pick a wall" mode; tapping an INTERIOR wall lifts it. Committed — Undo
 // won't restore it (the removal is propagated into the undo history); Reset does.
+const ICON_X    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+const ICON_UNDO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>';
+
+// The rail lives in the controls slot; its text/button are state-driven.
+function setRail(mode){
+  const l1 = document.getElementById("armRailL1"), l2 = document.getElementById("armRailL2"), btn = document.getElementById("armRailBtn");
+  if (!l1) return;
+  if (mode === "armed"){
+    l1.textContent = "Tap a wall to blast it"; l2.textContent = "Costs a star"; l2.style.display = "";
+    btn.innerHTML = ICON_X; btn.setAttribute("aria-label", "Cancel");
+  } else {   // "success"
+    l1.textContent = "Wall blasted"; l2.textContent = ""; l2.style.display = "none";
+    btn.innerHTML = ICON_UNDO + "<span>Undo</span>"; btn.setAttribute("aria-label", "Undo blast");
+  }
+}
+function updateAssistBtn(){
+  const btn = document.getElementById("assistBtn");
+  if (btn) btn.classList.toggle("disabled", !game.hasRemovableWalls);   // greyed but still tappable
+}
+function enterAssistUndo(cell){
+  game.lastBlast = cell;
+  document.body.classList.add("assist-undo");
+  setRail("success");
+}
+function clearAssistUndo(){
+  game.lastBlast = null;
+  document.body.classList.remove("assist-undo");
+}
 function setAssistMode(on){
   game.assistMode = !!on && !game.won && !!game.state;
   document.body.classList.toggle("assisting", game.assistMode);
   const btn = document.getElementById("assistBtn");
   if (btn) btn.classList.toggle("active", game.assistMode);
+  if (game.assistMode){ clearAssistUndo(); setRail("armed"); }   // arming supersedes any pending Undo
 }
 function removeWall(r, c){
   const s = game.state;
   if (!s || game.won || game.animating) return false;
-  if (!isWall(s, r, c)) return false;                                  // must be a (still-present) wall
-  if (r <= 0 || c <= 0 || r >= s.rows - 1 || c >= s.cols - 1) return false;  // interior only — never the frame
+  if (!isRemovableWall(s, r, c)) return false;   // island (obstacle) walls only — never the sealing outer walls
   s.removed.push([r, c]);
   game.history.forEach(h => { if (h.removed) h.removed.push([r, c]); });     // Undo can't restore it
   if (!game.counted){ countTry(s.id); game.counted = true; }                 // first action counts an attempt
   buildBoard(); render(); saveProgress();
   return true;
 }
+// Undo the last blast — valid only in the success window (no move since). Restores
+// the wall + refunds the star by pulling [r,c] out of state.removed and every history entry.
+function undoBlast(){
+  const cell = game.lastBlast, s = game.state;
+  if (!cell || !s) return;
+  const keep = x => !(x[0] === cell[0] && x[1] === cell[1]);
+  s.removed = s.removed.filter(keep);
+  game.history.forEach(h => { if (h.removed) h.removed = h.removed.filter(keep); });
+  clearAssistUndo();
+  buildBoard(); render(); saveProgress();
+  toast("Wall restored");
+}
 function handleAssistTap(cell){
-  const removed = cell && removeWall(cell[0], cell[1]);
-  setAssistMode(false);
-  toast(removed ? "Wall removed — costs a star" : "Tap an interior wall to remove it");
+  if (cell && removeWall(cell[0], cell[1])){
+    setAssistMode(false);        // one blast = one cycle → auto-disarm into the Undo state
+    enterAssistUndo(cell);
+  } else {                       // mis-tap on a sealed wall / empty: shake + nudge, stay armed
+    const rail = document.getElementById("armRail"), l1 = document.getElementById("armRailL1");
+    rail.classList.remove("shake"); void rail.offsetWidth; rail.classList.add("shake");
+    l1.textContent = "Tap a glowing wall";
+    clearTimeout(game._mistapT);
+    game._mistapT = setTimeout(() => { if (game.assistMode) l1.textContent = "Tap a wall to blast it"; }, 1200);
+  }
 }
 
 // transient ripple at a tapped cell
@@ -1624,7 +1856,7 @@ function addDays(dateStr, delta){
 // not just a count. Built from stats ONLY (never viewedDate) so it reads as YOUR
 // ongoing daily streak, identical on today and archive views. Used by both the
 // landing streak module and the win card.
-function weekTilesHTML(s){
+function weekTilesHTML(s, popToday){
   const today = getToday();
   const hist = new Set(s.history || []);
   const dow = (new Date(today + "T00:00:00").getDay() + 6) % 7;   // 0 = Monday
@@ -1635,8 +1867,12 @@ function weekTilesHTML(s){
     const d = addDays(monday, i);
     const earned = hist.has(d);
     if (earned) solved++;
-    const cls = d === today ? "today" : (earned ? "on" : (d > today ? "future" : "off"));
-    html += `<div class="wtile ${cls}">${L[i]}</div>`;
+    // a completed day is the "earned" color even if it's today — gold ("today")
+    // is only the not-yet-solved current day. popToday pops today's tile into the
+    // earned color at the moment of completion (win card only).
+    const cls = earned ? "on" : (d === today ? "today" : (d > today ? "future" : "off"));
+    const pop = (popToday && earned && d === today) ? " justdone" : "";
+    html += `<div class="wtile ${cls}${pop}">${L[i]}</div>`;
   }
   return { html, solved };
 }
@@ -1668,7 +1904,7 @@ function renderWinStreak(s){
     ? `🔥 ${s.curStreak}-day streak`
     : (s.played ? "Start a new streak" : "Start your streak");
   el.innerHTML = `<div class="winstreakhead">${head}</div>`
-    + `<div class="winweek">${weekTilesHTML(s).html}</div>`
+    + `<div class="winweek">${weekTilesHTML(s, true).html}</div>`   // pop today's tile into the earned color
     + `<div class="winnext" id="winNext"></div>`;
 }
 
@@ -1877,6 +2113,8 @@ function clearWinUI(){
 // so the last slide gets a beat to be appreciated instead of being cut off.
 function win(pushedIdx){
   game.won = true;
+  game.assistMode = false; clearAssistUndo();
+  document.body.classList.remove("assisting");   // never leave a rail up over the win
   const perfect = isOptimal(game.state.moves, game.state.meta.optimal);
   if (navigator.vibrate) navigator.vibrate(perfect ? [30,40,30,40,60] : [20,40,20]);
 
@@ -2040,7 +2278,7 @@ function toast(msg){
       if (cell) walkTo(cell[0], cell[1]);
       return;
     }
-    if (game.assistMode){ setAssistMode(false); hidePushGhost(); return; }   // a drag in assist mode → just cancel
+    if (game.assistMode){ hidePushGhost(); return; }   // a drag while armed → no-op (only bomb/✕ disarms)
     // DRAG resolves only when it started ON a crate → a push. Empty-floor drags
     // are inert: navigation is tap-to-walk (or arrows/WASD), so drag means one
     // thing — grab and push a crate.
@@ -2053,6 +2291,11 @@ function toast(msg){
     }
   });
 })();
+
+// iOS Safari only fires :active on tap when the document has a touchstart listener.
+// The whole button-press motion rides on :active, so without this the click-down
+// never plays on iPhone. Empty + passive → no effect on gestures/scroll.
+document.addEventListener("touchstart", function(){}, { passive: true });
 
 // keyboard: arrows + WASD
 window.addEventListener("keydown", (e) => {
@@ -2105,8 +2348,13 @@ document.getElementById("undoBtn").addEventListener("click", undo);
 document.getElementById("resetBtn").addEventListener("click", reset);   // reset() ignores taps mid-animation
 document.getElementById("assistBtn").addEventListener("click", () => {
   if (game.won || game.animating || !game.state) return;
+  if (!game.hasRemovableWalls){ toast("No walls to blast here"); return; }   // open room: explain, never arm
   setAssistMode(!game.assistMode);
-  if (game.assistMode) toast("Tap a wall to remove it — costs a star");
+});
+// Rail button: cancel while armed, undo the blast while the success window is open.
+document.getElementById("armRailBtn").addEventListener("click", () => {
+  if (document.body.classList.contains("assist-undo")) undoBlast();
+  else setAssistMode(false);
 });
 
 // "Swipe to move": swiping empty floor takes a directional step. On by default;
@@ -2189,7 +2437,8 @@ copyBtn.addEventListener("click", async () => {
     // momentary in-button confirmation so the action clearly "took"
     const lbl = copyBtn.querySelector(".lbl");
     lbl.textContent = "Copied ✓";
-    setTimeout(() => { lbl.textContent = "Share"; }, 1400);   // keep the icon; only swap the label
+    copyBtn.classList.add("copied");                          // green flash + pop
+    setTimeout(() => { lbl.textContent = "Share"; copyBtn.classList.remove("copied"); }, 1400);   // keep the icon; only swap the label
   } else {
     toast("Copy failed");
   }
@@ -2777,6 +3026,21 @@ function runTests(){
   wr.removed.push([1,2]);
   ok("isWall: removed cell reads as floor", isWall(wr, 1, 2) === false);
   ok("cloneState carries removed forward", cloneState(wr).removed.length === 1 && isWall(cloneState(wr), 1, 2) === false);
+
+  // Assist may blast only INTERIOR walls; the outside-border squares (row/col 0 and
+  // the last row/col) are the outer walls and are never removable.
+  const iw = parsePuzzle({ id:"iw", terrain:["#####","#...#","#.#.#","#...#","#####"], slots:[{pos:[1,1],letter:"A"}], crates:[{pos:[1,1],letter:"A"}], player:[1,3], anagram:"A", answer:"A" });
+  ok("isRemovableWall: interior wall is blastable", isWall(iw,2,2) && isRemovableWall(iw, 2, 2) === true);
+  ok("isRemovableWall: top-border wall is protected", isWall(iw,0,2) && isRemovableWall(iw, 0, 2) === false);
+  ok("isRemovableWall: left-border wall is protected", isWall(iw,2,0) && isRemovableWall(iw, 2, 0) === false);
+  ok("isRemovableWall: right-border wall is protected", isWall(iw,2,4) && isRemovableWall(iw, 2, 4) === false);
+
+  // streak week: a completed day takes the earned color, even when it's today
+  const wtDone = weekTilesHTML({ history:[getToday()] });
+  ok("weekTilesHTML: solved today is 'on' (earned), not gold 'today'",
+     /wtile on\b/.test(wtDone.html) && !/wtile today\b/.test(wtDone.html));
+  ok("weekTilesHTML: unsolved today stays 'today' (gold)",
+     /wtile today\b/.test(weekTilesHTML({ history:[] }).html));
 
   // report
   const passed = results.filter(r => r.pass).length;
