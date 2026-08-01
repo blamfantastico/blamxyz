@@ -358,14 +358,14 @@
   /* while the landing is up, the play surfaces are HIDDEN (not dimmed) so the
      landing owns the viewport — no modal-over-a-modal on first run. */
   body.landing-up .topbar, body.landing-up .stage, body.landing-up .controls{display:none;}
-  /* Landing scrolls the DOCUMENT like a normal page (same fix as the win screen),
-     so it tucks under Safari's translucent toolbar instead of clipping at it.
-     landing-up hands scrolling to the window and the overlay drops into normal
-     flow; .landpop is its own min-height viewport box — centers the panel when it
-     fits, grows and lets the WINDOW scroll when it's taller than the screen. */
+  /* Landing scrolls the DOCUMENT like a normal page (identical structure to the
+     win screen), so it tucks under Safari's translucent toolbar instead of
+     clipping at it. landing-up hands scrolling to the window and the overlay
+     drops into normal flow as a plain BLOCK; the min-height viewport box lives on
+     the inner .landwrap (mirrors .winwrap) — centers the panel when it fits,
+     grows and lets the WINDOW scroll when it's taller than the screen. */
   body.landing-up{height:auto;min-height:100%;padding:0;touch-action:auto;overflow:visible;overscroll-behavior:auto;}
-  body.landing-up #startOverlay.landpop{position:relative;inset:auto;height:auto;width:100%;
-    min-height:100vh;min-height:100svh;overflow:visible;}
+  body.landing-up #startOverlay.landpop{position:relative;inset:auto;height:auto;width:100%;overflow:visible;}
   /* landing wordmark: plain bold text (logo design punted) */
   .landbrand{font-weight:800;font-size:24px;letter-spacing:4px;color:var(--text);margin:0;}
   /* full-screen page feel: strip the card chrome so content sits on the bg */
@@ -587,9 +587,10 @@
   /* Column flex + margin:auto on the card centers it when it fits and top-anchors +
      scrolls it when it doesn't — so it never clips. Safe-area padding keeps it clear
      of the notch / home indicator / browser toolbars. */
-  #startOverlay.landpop{background:var(--pop-paper);backdrop-filter:none;
-    flex-direction:column;align-items:center;justify-content:flex-start;
-    padding:calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));}
+  #startOverlay.landpop{inset:0;height:auto;padding:0;background:var(--pop-paper);backdrop-filter:none;}
+  #startOverlay.landpop.show{display:block;}   /* block scroller — .landwrap centers (mirrors .winwrap) */
+  .landwrap{min-height:100vh;min-height:100svh;display:flex;align-items:center;justify-content:center;
+    padding:calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));box-sizing:border-box;}
   .landscreen{width:100%;max-width:400px;margin:auto;border:3px solid var(--pop-ink);
     border-radius:20px;overflow:hidden;box-shadow:7px 9px 0 var(--pop-ink);}
   .landbody{flex:0 0 auto;}                     /* bounded panel: don't stretch */
@@ -923,6 +924,7 @@
 <!-- Daily landing — Halftone Pop: cobalt hero + cream content (mirrors the win) -->
 <div class="overlay solid landpop show" id="startOverlay">
   <button class="help" id="landHelpBtn" aria-label="How to play">?</button>
+  <div class="landwrap">
   <div class="landscreen">
     <div class="winhero landhero">
       <div class="landbrand">SPELLOBAN</div>
@@ -943,6 +945,7 @@
       <div class="countdown" id="landCountdown"></div>
       <div class="htwrap"><span class="htsh"></span><button class="popbtn share" id="playBtn"><svg class="btnicon playtri" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><path d="M7 4v16l13-8z"/></svg><span class="lbl">Play</span></button></div>
     </div>
+  </div>
   </div>
 </div>
 
