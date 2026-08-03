@@ -881,7 +881,7 @@
   <div class="brand">
     <div class="logomark" aria-hidden="true">S</div>
     <div class="brandtext">
-      <div class="kicker" id="kicker">SPELLOBAN</div>
+      <div class="kicker" id="kicker"></div>
       <div class="dayline">
         <span class="meter" id="meter" aria-hidden="true"></span>
       </div>
@@ -1289,16 +1289,15 @@ function applyDayMeta(p){
   }
   document.querySelector(".dayline")
     .setAttribute("aria-label", `${info.name}, difficulty ${info.tier} of 5, ${info.label}`);
-  // Kicker shows the puzzle's date. The demo week is backdated so each date's
-  // weekday matches its difficulty slot, so the date and the weekday hero agree.
+  // Kicker is the in-game title: just the puzzle's date (difficulty pips sit under it).
   const kick = document.getElementById("kicker");
   const ds = p && p.meta && p.meta.date;
   if (ds){
     const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     const [y,m,d] = ds.split("-").map(Number);
-    kick.textContent = `SPELLOBAN · ${MON[m-1]} ${d}`;
+    kick.textContent = `${MON[m-1]} ${d}`;
   } else {
-    kick.textContent = "SPELLOBAN";
+    kick.textContent = "";
   }
 }
 
