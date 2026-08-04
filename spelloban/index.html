@@ -403,6 +403,10 @@
     font-size:14px;font-weight:800;color:var(--muted);
     background:transparent;border:1px solid transparent;
   }
+  /* `.card button{padding:16px}` (higher specificity) bleeds in and, with
+     border-box, forces the cell taller than its aspect-ratio → non-square, and
+     played cells (with a glyph) grow taller than unplayed. Pin cells to 0 pad. */
+  .calgrid .calcell{padding:0;}
   .calcell .g{font-size:9px;font-weight:700;height:10px;margin-top:2px;}
   .calcell.three{background:linear-gradient(var(--green-top),var(--green));color:#08361a;
     box-shadow:inset 0 -2px 0 rgba(0,0,0,.22), inset 0 2px 0 rgba(255,255,255,.24);}
@@ -646,6 +650,9 @@
     box-shadow:2px 2px 0 var(--pop-ink);gap:0;overflow:hidden;}
   .iconbtn{background:transparent;border:0;box-shadow:none;border-radius:0;width:38px;height:34px;color:var(--pop-ink);}
   .iconbtn + .iconbtn{border-left:2px solid var(--pop-ink);}
+  /* when the bomb (first button) is hidden on solve, the next button's divider
+     would sit against the pill's left border → double line. Drop that divider. */
+  .topActions.assist-hidden .assist + .iconbtn{border-left:0;}
   .iconbtn svg{width:17px;height:17px;}
   .iconbtn:active{transform:none;background:rgba(19,19,19,.07);}
   /* picking a wall: the button itself pulses orange → red (armed), not the flat cobalt */
@@ -764,7 +771,8 @@
   .tapfx::after{border-color:var(--pop-cobalt);}
 
   /* ================= utility overlays (Stats / Help / Archive) — Halftone Pop ================= */
-  .overlay .card{background:#fff;border:3px solid var(--pop-ink);border-radius:18px;
+  /* paper (not white) to match the game surface — landing, win, and board are all --pop-paper */
+  .overlay .card{background:var(--pop-paper);border:3px solid var(--pop-ink);border-radius:18px;
     box-shadow:6px 8px 0 var(--pop-ink);color:var(--pop-ink);padding:24px 22px;}
   .overlay .card h2{color:var(--pop-ink);font-weight:900;text-transform:uppercase;letter-spacing:.02em;font-size:22px;margin:0 0 16px;}
   .overlay .card p{color:#5b5848;}
@@ -2112,6 +2120,9 @@ function setSeeResult(on){
   document.getElementById("undoBtn").style.display  = on ? "none" : "";
   document.getElementById("resetBtn").style.display = on ? "none" : "";
   document.getElementById("assistBtn").style.display = on ? "none" : "";
+  // bomb is the first pill button; when it's hidden the next button's divider
+  // would double up on the pill's left border — drop it (see .assist-hidden CSS).
+  document.querySelector(".topActions").classList.toggle("assist-hidden", on);
   if (on) setAssistMode(false);
 }
 function openWinCard(){
