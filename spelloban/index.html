@@ -328,7 +328,7 @@
   .card .nextin{color:var(--muted);font-size:13px;margin:0 0 16px;}
   .card .nextin b{color:var(--text);font-variant-numeric:tabular-nums;}
   .card .nextin:empty{display:none;}
-  /* optimal ("perfect") celebration: gold card glow + confetti */
+  /* perfect (optimal) solves get a gold card glow; confetti (below) rains on every win */
   .card.perfect{border-color:#ffc93c;box-shadow:0 0 0 1px rgba(255,201,60,.7), 0 12px 44px rgba(255,201,60,.22);}
   .confetti{position:absolute;top:-14px;width:8px;height:13px;border-radius:2px;pointer-events:none;z-index:55;animation:conffall linear forwards;}
   @keyframes conffall{ to{ transform:translateY(110vh) rotate(var(--spin,540deg)); opacity:0; } }
@@ -2092,7 +2092,7 @@ const Platform = (() => {
            get ready(){ return ready; }, get playerId(){ return playerId; } };
 })();
 
-// gold/green/blue confetti burst over the win overlay (optimal solves only)
+// Pop-palette confetti burst that rains over the win overlay on every win.
 function confettiBurst(){
   const colors = ["#FFD23E","#FF3D9D","#2E4BE8","#FFC42E","#ffffff"];
   for (let i = 0; i < 40; i++){
@@ -2242,7 +2242,7 @@ function showWinModal(){
   if (isDaily && nextEl) startCountdown(nextEl);
 
   openWinCard();
-  if (perfect) confettiBurst();
+  confettiBurst();   // every win gets confetti; perfect still stands out via the crown + gold glow
 }
 
 /* ---------- toast ---------- */
