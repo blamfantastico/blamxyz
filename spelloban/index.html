@@ -2093,9 +2093,10 @@ const Platform = (() => {
 })();
 
 // Pop-palette confetti burst that rains over the win overlay on every win.
-function confettiBurst(){
+// Perfect solves get the full burst; other wins get half.
+function confettiBurst(count = 40){
   const colors = ["#FFD23E","#FF3D9D","#2E4BE8","#FFC42E","#ffffff"];
-  for (let i = 0; i < 40; i++){
+  for (let i = 0; i < count; i++){
     const p = document.createElement("div");
     p.className = "confetti";
     p.style.left = (Math.random() * 100) + "%";
@@ -2242,7 +2243,7 @@ function showWinModal(){
   if (isDaily && nextEl) startCountdown(nextEl);
 
   openWinCard();
-  confettiBurst();   // every win gets confetti; perfect still stands out via the crown + gold glow
+  confettiBurst(perfect ? 40 : 20);   // full burst for perfect, half for other wins
 }
 
 /* ---------- toast ---------- */
