@@ -332,6 +332,13 @@
   .card.perfect{border-color:#ffc93c;box-shadow:0 0 0 1px rgba(255,201,60,.7), 0 12px 44px rgba(255,201,60,.22);}
   .confetti{position:absolute;top:-14px;width:8px;height:13px;border-radius:2px;pointer-events:none;z-index:55;animation:conffall linear forwards;}
   @keyframes conffall{ to{ transform:translateY(110vh) rotate(var(--spin,540deg)); opacity:0; } }
+  /* play-screen: each solved letter blasts a burst outward from its center as it pops */
+  .confetti-pop{position:fixed;width:7px;height:11px;border-radius:2px;pointer-events:none;z-index:60;
+    animation:confpop .8s cubic-bezier(.2,.7,.3,1) forwards;}
+  @keyframes confpop{
+    0%{ transform:translate(-50%,-50%) rotate(0deg); opacity:1; }
+    100%{ transform:translate(calc(-50% + var(--dx,0px)), calc(-50% + var(--dy,0px))) rotate(var(--spin,540deg)); opacity:0; }
+  }
 
   /* persistent stats line (win screen) */
   .statline{color:var(--muted);font-size:12px;line-height:1.6;}
@@ -2092,8 +2099,7 @@ const Platform = (() => {
            get ready(){ return ready; }, get playerId(){ return playerId; } };
 })();
 
-// Pop-palette confetti burst that rains over the win overlay on every win.
-// Perfect solves get the full burst; other wins get half.
+// Pop-palette confetti that rains over the win overlay (perfect solves only).
 function confettiBurst(count = 40){
   const colors = ["#FFD23E","#FF3D9D","#2E4BE8","#FFC42E","#ffffff"];
   for (let i = 0; i < count; i++){
@@ -2106,6 +2112,26 @@ function confettiBurst(count = 40){
     p.style.animationDelay = (Math.random() * 0.25) + "s";
     winOverlay.appendChild(p);
     setTimeout(() => p.remove(), 2700);
+  }
+}
+
+// Play-screen: a small burst emanating from a tile's center as its letter pops.
+function confettiAtEl(el, count = 12){
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  const colors = ["#FFD23E","#FF3D9D","#2E4BE8","#FFC42E","#35c46b","#ffffff"];
+  for (let i = 0; i < count; i++){
+    const p = document.createElement("div");
+    p.className = "confetti-pop";
+    p.style.left = cx + "px"; p.style.top = cy + "px";
+    p.style.background = colors[i % colors.length];
+    const ang = Math.random() * Math.PI * 2, dist = 28 + Math.random() * 46;
+    p.style.setProperty("--dx", (Math.cos(ang) * dist).toFixed(1) + "px");
+    p.style.setProperty("--dy", (Math.sin(ang) * dist - 22).toFixed(1) + "px");   // slight upward bias
+    p.style.setProperty("--spin", (Math.random() * 720 - 360).toFixed(0) + "deg");
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 900);
   }
 }
 
@@ -2142,6 +2168,7 @@ function closeWinCard(){
 function clearWinUI(){
   (game.winTimers || []).forEach(clearTimeout);   // cancel any pending celebration / showWinModal
   game.winTimers = [];
+  document.querySelectorAll(".confetti, .confetti-pop").forEach(c => c.remove());   // drop stray confetti on early exit
   winOverlay.classList.remove("show");
   document.body.classList.remove("winopen");
   setSeeResult(false);
@@ -2172,11 +2199,13 @@ function win(pushedIdx){
   // that was Reset out from under it (recording a bogus 0-move solve).
   game.winTimers = order.map((i, k) => setTimeout(() => {
     const el = game.crateEls[i];
-    if (el){ el.classList.remove("pop", "celebrate"); void el.offsetWidth; el.classList.add("celebrate"); }
+    if (el){ el.classList.remove("pop", "celebrate"); void el.offsetWidth; el.classList.add("celebrate"); confettiAtEl(el); }
   }, SLIDE + Math.abs(k - epi) * STAGGER));
 
+  // Hold on the board a beat or two after the last letter pops so the confetti
+  // is watched before the result modal takes over.
   const maxDist = Math.max(epi, order.length - 1 - epi);
-  game.winTimers.push(setTimeout(showWinModal, SLIDE + maxDist * STAGGER + 420));
+  game.winTimers.push(setTimeout(showWinModal, SLIDE + maxDist * STAGGER + 1300));
 }
 
 function showWinModal(){
@@ -2243,7 +2272,7 @@ function showWinModal(){
   if (isDaily && nextEl) startCountdown(nextEl);
 
   openWinCard();
-  confettiBurst(perfect ? 40 : 20);   // full burst for perfect, half for other wins
+  if (perfect) confettiBurst();   // extra full rain on the end screen for perfect solves
 }
 
 /* ---------- toast ---------- */
