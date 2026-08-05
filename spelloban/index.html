@@ -332,12 +332,15 @@
   .card.perfect{border-color:#ffc93c;box-shadow:0 0 0 1px rgba(255,201,60,.7), 0 12px 44px rgba(255,201,60,.22);}
   .confetti{position:absolute;top:-14px;width:8px;height:13px;border-radius:2px;pointer-events:none;z-index:55;animation:conffall linear forwards;}
   @keyframes conffall{ to{ transform:translateY(110vh) rotate(var(--spin,540deg)); opacity:0; } }
-  /* play-screen: each solved letter blasts a burst outward from its center as it pops */
+  /* play-screen: each solved letter blasts a burst that arcs up-and-out then falls
+     under gravity (peak → fall past the start), fading only at the end */
   .confetti-pop{position:fixed;width:7px;height:11px;border-radius:2px;pointer-events:none;z-index:60;
-    animation:confpop .8s cubic-bezier(.2,.7,.3,1) forwards;}
+    animation:confpop 1.5s cubic-bezier(.28,.62,.45,1) forwards;}
   @keyframes confpop{
-    0%{ transform:translate(-50%,-50%) rotate(0deg); opacity:1; }
-    100%{ transform:translate(calc(-50% + var(--dx,0px)), calc(-50% + var(--dy,0px))) rotate(var(--spin,540deg)); opacity:0; }
+    0%  { transform:translate(-50%,-50%) rotate(0deg); opacity:1; }
+    22% { transform:translate(calc(-50% + var(--dx,0px) * 0.5), calc(-50% + var(--peak,-40px))) rotate(calc(var(--spin,540deg) * 0.45)); opacity:1; }
+    80% { opacity:1; }
+    100%{ transform:translate(calc(-50% + var(--dx,0px)), calc(-50% + var(--fall,120px))) rotate(var(--spin,540deg)); opacity:0; }
   }
 
   /* persistent stats line (win screen) */
@@ -2116,6 +2119,7 @@ function confettiBurst(count = 40){
 }
 
 // Play-screen: a small burst emanating from a tile's center as its letter pops.
+// Each piece bursts up-and-out, then gravity carries it down past the start.
 function confettiAtEl(el, count = 12){
   if (!el) return;
   const r = el.getBoundingClientRect();
@@ -2126,12 +2130,16 @@ function confettiAtEl(el, count = 12){
     p.className = "confetti-pop";
     p.style.left = cx + "px"; p.style.top = cy + "px";
     p.style.background = colors[i % colors.length];
-    const ang = Math.random() * Math.PI * 2, dist = 28 + Math.random() * 46;
-    p.style.setProperty("--dx", (Math.cos(ang) * dist).toFixed(1) + "px");
-    p.style.setProperty("--dy", (Math.sin(ang) * dist - 22).toFixed(1) + "px");   // slight upward bias
+    const dx   = (Math.random() * 2 - 1) * 72;        // horizontal drift, kept through the fall
+    const peak = -(28 + Math.random() * 55);          // rise at the burst (up)
+    const fall = 95 + Math.random() * 110;            // then fall well below the start (gravity)
+    p.style.setProperty("--dx",   dx.toFixed(1) + "px");
+    p.style.setProperty("--peak", peak.toFixed(1) + "px");
+    p.style.setProperty("--fall", fall.toFixed(1) + "px");
     p.style.setProperty("--spin", (Math.random() * 720 - 360).toFixed(0) + "deg");
+    p.style.animationDuration = (1.3 + Math.random() * 0.6).toFixed(2) + "s";   // varied fall speed
     document.body.appendChild(p);
-    setTimeout(() => p.remove(), 900);
+    setTimeout(() => p.remove(), 2100);
   }
 }
 
@@ -2151,6 +2159,7 @@ function setSeeResult(on){
   if (on) setAssistMode(false);
 }
 function openWinCard(){
+  document.querySelectorAll(".confetti-pop").forEach(c => c.remove());   // clear on-board burst before the modal takes the screen
   winOverlay.classList.add("show");
   document.body.classList.add("winopen");   // hand scrolling to the document so the card tucks under Safari's toolbar (see .winopen CSS)
   setSeeResult(false);
