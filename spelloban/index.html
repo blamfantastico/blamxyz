@@ -2611,10 +2611,10 @@ function earliestBakedDate(){
 // today (or before the first bake) would hit dailyPuzzle()'s modulo fallback and
 // record a solve under the wrong date's id, so both ends are clamped.
 document.getElementById("datePrev").addEventListener("click", () => {
-  if (viewedDate > earliestBakedDate()){ viewedDate = addDays(viewedDate, -1); renderLanding(); }
+  if (viewedDate > earliestBakedDate()){ setViewedDate(addDays(viewedDate, -1)); renderLanding(); }
 });
 document.getElementById("dateNext").addEventListener("click", () => {
-  if (viewedDate < getToday()){ viewedDate = addDays(viewedDate, 1); renderLanding(); }
+  if (viewedDate < getToday()){ setViewedDate(addDays(viewedDate, 1)); renderLanding(); }
 });
 
 // ---------- archive calendar ----------
@@ -2631,7 +2631,11 @@ function archiveFloorMonth(){
   for (const p of dailyPool()){ const d = p.meta && p.meta.date; if (d && (!earliest || d < earliest)) earliest = d; }
   return ((earliest && earliest > PUZZLE_EPOCH) ? earliest : PUZZLE_EPOCH).slice(0, 7);
 }
-let archiveMonth = getToday().slice(0, 7);   // "YYYY-MM" currently displayed
+let archiveMonth = getToday().slice(0, 7);   // "YYYY-MM" the archive shows; persists across opens within a session
+// Anchor the archive to the day you're on: every viewedDate change syncs the
+// month, and openArchive() no longer resets it. So "play a June puzzle → open
+// the calendar → shows June", and a browsed month sticks until you change days.
+function setViewedDate(dateStr){ viewedDate = dateStr; archiveMonth = dateStr.slice(0, 7); }
 
 function buildCalCell(dateStr, dayNum, today){
   const cell = document.createElement("button");
@@ -2660,7 +2664,7 @@ function buildCalCell(dateStr, dayNum, today){
       interactive = true;
       // route through openLanding so a picked day lands correctly whether the
       // archive was opened from the landing OR from the results/win screen.
-      cell.addEventListener("click", () => { viewedDate = dateStr; hideArchive(); openLanding(false); });
+      cell.addEventListener("click", () => { setViewedDate(dateStr); hideArchive(); openLanding(false); });
     }
   }
   // glyph is decorative — the state is carried by the cell's aria-label instead.
@@ -2695,7 +2699,7 @@ function stepArchiveMonth(delta){
   if (cand < archiveFloorMonth() || cand > getToday().slice(0, 7)) return;
   archiveMonth = cand; renderArchive();
 }
-function openArchive(){ archiveMonth = getToday().slice(0, 7); renderArchive(); archiveOverlay.classList.add("show"); }
+function openArchive(){ renderArchive(); archiveOverlay.classList.add("show"); }   // opens on the remembered month (see setViewedDate)
 function hideArchive(){ archiveOverlay.classList.remove("show"); }
 document.getElementById("dayPick").addEventListener("click", openArchive);
 document.getElementById("archiveCloseBtn").addEventListener("click", hideArchive);
@@ -2718,7 +2722,7 @@ function openLanding(focusPlay = true){
   if (focusPlay) document.getElementById("playBtn").focus({ preventScroll: true });
 }
 function showStart(){                           // boot: always open on today
-  viewedDate = getToday();
+  setViewedDate(getToday());
   openLanding(false);
 }
 
